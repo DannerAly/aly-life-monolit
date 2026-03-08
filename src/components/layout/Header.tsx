@@ -12,9 +12,11 @@ export function Header() {
   const { user, signOut } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  const avatar = user?.user_metadata?.avatar_url as string | undefined;
-  const name = (user?.user_metadata?.full_name ?? user?.email ?? '') as string;
-  const firstName = name.split(' ')[0];
+  // Google OAuth manda los datos en user_metadata
+  const meta = user?.user_metadata ?? {};
+  const avatar = (meta.avatar_url ?? meta.picture ?? null) as string | null;
+  const name = (meta.full_name ?? meta.name ?? user?.email ?? '') as string;
+  const firstName = name.split(' ')[0] || 'Usuario';
 
   return (
     <header className="fixed top-0 inset-x-0 z-40 flex items-center justify-between px-6 py-4">
@@ -64,12 +66,13 @@ export function Header() {
                 <Image
                   src={avatar}
                   alt={name}
-                  width={24}
-                  height={24}
-                  className="rounded-full"
+                  width={28}
+                  height={28}
+                  className="rounded-full ring-1 ring-white/20"
+                  referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="w-6 h-6 rounded-full bg-blue-500/30 flex items-center justify-center text-xs font-bold text-blue-400">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-xs font-bold text-white">
                   {firstName[0]?.toUpperCase()}
                 </div>
               )}
