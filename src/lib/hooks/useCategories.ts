@@ -70,6 +70,7 @@ export function useCategories() {
 
   const createCategory = useCallback(async (data: CategoryFormData): Promise<Category | null> => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
       const maxOrder = categories.reduce((max, c) => Math.max(max, c.sort_order), -1);
       const { data: created, error } = await supabase
         .from('categories')
@@ -78,6 +79,7 @@ export function useCategories() {
           emoji: data.emoji || null,
           color: data.color,
           sort_order: maxOrder + 1,
+          user_id: user?.id,
         })
         .select()
         .single();
