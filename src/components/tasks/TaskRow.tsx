@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Minus, Plus, Edit2, Trash2, CheckCircle2, Circle } from 'lucide-react';
 import { CircularProgress } from '@/components/ui/CircularProgress';
 import { StatusBadge } from '@/components/ui/Badge';
-import { formatRelativeDate, isOverdue } from '@/lib/utils/date';
+import { formatRelativeDate, isOverdue, getUrgencyColor } from '@/lib/utils/date';
 import type { TaskWithProgress } from '@/lib/types/database';
 import { cn } from '@/lib/utils/cn';
 
@@ -60,6 +60,7 @@ export function TaskRow({
   };
 
   const overdue = isOverdue(task.due_date) && task.status !== 'completed';
+  const urgencyColor = task.status !== 'completed' ? getUrgencyColor(task.due_date) : null;
 
   return (
     <motion.div
@@ -72,6 +73,7 @@ export function TaskRow({
         task.status === 'completed' && 'opacity-70',
         task.status === 'failed' && 'opacity-60'
       )}
+      style={urgencyColor ? { borderLeft: `3px solid ${urgencyColor}` } : undefined}
     >
       {/* Progress or Toggle */}
       {task.task_type === 'one_time' ? (
@@ -137,7 +139,10 @@ export function TaskRow({
           )}
           <StatusBadge status={task.status} />
           {task.due_date && (
-            <span className={cn('text-xs', overdue ? 'text-rose-500' : 'text-muted-foreground')}>
+            <span
+              className="text-xs font-medium"
+              style={{ color: urgencyColor ?? undefined }}
+            >
               {formatRelativeDate(task.due_date)}
             </span>
           )}

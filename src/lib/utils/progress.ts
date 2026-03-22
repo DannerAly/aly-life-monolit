@@ -8,10 +8,11 @@ export function calculateProgress(current: number, target: number): number {
 export function deriveStatus(task: Task): TaskStatus {
   if (task.current_value >= task.target_value) return 'completed';
   if (task.due_date) {
-    const due = new Date(task.due_date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (due < today) return 'failed';
+    // Parse as local midnight to avoid timezone issues
+    const due = new Date(task.due_date + 'T23:59:59');
+    const now = new Date();
+    // Only fail AFTER the due date has fully passed (past midnight)
+    if (due < now) return 'failed';
   }
   return 'active';
 }
