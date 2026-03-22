@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Moon, Sun, Zap, LogOut, ChevronDown, HelpCircle } from 'lucide-react';
+import { Moon, Sun, Zap, LogOut, ChevronDown, HelpCircle, Target, Wallet } from 'lucide-react';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
@@ -166,6 +166,32 @@ export function Header({ onStartTutorial }: HeaderProps) {
           </div>
         )}
       </motion.div>
+
+      {/* Mobile bottom tab bar */}
+      <nav className="fixed bottom-0 inset-x-0 z-40 sm:hidden glass border-t border-white/10 safe-area-bottom">
+        <div className="flex items-center justify-around px-4 py-2">
+          <Link
+            href="/"
+            className={cn(
+              'flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl transition-colors',
+              isObjectives ? 'text-blue-500' : 'text-muted-foreground'
+            )}
+          >
+            <Target size={20} />
+            <span className="text-[10px] font-medium">Objetivos</span>
+          </Link>
+          <Link
+            href="/finances"
+            className={cn(
+              'flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl transition-colors',
+              isFinances ? 'text-emerald-500' : 'text-muted-foreground'
+            )}
+          >
+            <Wallet size={20} />
+            <span className="text-[10px] font-medium">Finanzas</span>
+          </Link>
+        </div>
+      </nav>
     </header>
   );
 }

@@ -92,7 +92,7 @@ export default function CategoryPage({ params }: PageProps) {
   return (
     <div className="min-h-screen mesh-bg">
       <Header />
-      <main className="pt-24 pb-12 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
+      <main className="pt-24 pb-24 sm:pb-12 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
         {loading || !liveCategory ? (
           <div className="glass-card h-36 animate-pulse mb-6" />
         ) : (
