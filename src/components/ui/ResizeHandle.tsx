@@ -78,6 +78,7 @@ export function ResizeHandle({ currentSize, onResize }: ResizeHandleProps) {
   return (
     <div
       onPointerDown={handlePointerDown}
+      data-onboarding="resize-handle"
       className="absolute bottom-1 right-1 z-20 w-6 h-6 cursor-nwse-resize opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity touch-none select-none"
       title="Arrastrar para cambiar tamaño"
     >

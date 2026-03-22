@@ -10,6 +10,8 @@ export interface OnboardingStep {
   targetSelector: string;
   fallbackSelector?: string;
   position: 'top' | 'bottom' | 'left' | 'right';
+  /** CSS class to temporarily add to the target element during this step */
+  targetClass?: string;
 }
 
 const ONBOARDING_STEPS: OnboardingStep[] = [
@@ -23,45 +25,48 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
   {
     id: 'objectives',
     title: 'Tu progreso general',
-    description: 'Aquí ves un resumen de todas tus áreas y objetivos. El porcentaje refleja tu avance total.',
+    description: 'Aquí ves un resumen de todas tus áreas y objetivos. El porcentaje refleja tu avance total. Haz click para ver estadísticas detalladas.',
     targetSelector: '[data-onboarding="hero"]',
     position: 'bottom',
   },
   {
     id: 'categories',
     title: 'Áreas de vida',
-    description: 'Crea áreas como Salud, Trabajo o Estudio. Cada una agrupa objetivos relacionados.',
+    description: 'Crea áreas como Salud, Trabajo o Estudio. Cada una agrupa objetivos relacionados. Haz click en una para ver sus tareas.',
     targetSelector: '[data-onboarding="category-card"]',
     fallbackSelector: '[data-onboarding="add-category"]',
-    position: 'top',
+    position: 'bottom',
   },
   {
     id: 'habits',
     title: 'Hábitos diarios',
-    description: 'Registra hábitos como meditación, ejercicio o lectura. Incrementa el contador cada día.',
+    description: 'Registra hábitos como meditación, ejercicio o lectura. Toca + para sumar al contador y click en la card para ver estadísticas.',
     targetSelector: '[data-onboarding="habit-card"]',
     fallbackSelector: '[data-onboarding="add-habit"]',
-    position: 'top',
+    position: 'bottom',
   },
   {
     id: 'finances',
     title: 'Tus finanzas',
-    description: 'Lleva control de ingresos y gastos. Puedes importar extractos bancarios automáticamente.',
+    description: 'Lleva control de ingresos y gastos. Puedes importar extractos bancarios para clasificar gastos automáticamente.',
+    // On mobile, nav-finances is in the bottom bar; on desktop it's in the header
     targetSelector: '[data-onboarding="nav-finances"]',
-    position: 'bottom',
+    position: 'top',
   },
   {
     id: 'drag-drop',
     title: 'Organiza a tu gusto',
-    description: 'Arrastra las tarjetas para reorganizarlas. Tu layout se guarda automáticamente.',
-    targetSelector: '[data-onboarding="drag-handle"]',
+    description: 'Arrastra desde este ícono para redimensionar las tarjetas. También puedes moverlas desde el ícono de la esquina superior derecha.',
+    targetSelector: '[data-onboarding="resize-handle"]',
     fallbackSelector: '[data-onboarding="hero"]',
-    position: 'left',
+    position: 'top',
+    // Make the normally-hidden resize handle visible during this step
+    targetClass: '!opacity-100',
   },
   {
     id: 'done',
     title: '¡Listo para empezar!',
-    description: 'Ya conoces lo básico. Puedes volver a ver este tutorial desde el menú de usuario.',
+    description: 'Ya conoces lo básico. Puedes volver a ver este tutorial desde el menú de usuario en cualquier momento.',
     targetSelector: '[data-onboarding="hero"]',
     position: 'bottom',
   },

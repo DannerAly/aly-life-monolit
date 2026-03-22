@@ -82,6 +82,19 @@ export function Header({ onStartTutorial }: HeaderProps) {
         animate={{ opacity: 1, x: 0 }}
         className="flex items-center gap-2"
       >
+        {/* Tutorial button - desktop only */}
+        {onStartTutorial && (
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={onStartTutorial}
+            className="hidden sm:flex glass-button rounded-xl p-2.5 hover:scale-105 transition-transform"
+            aria-label="Ver tutorial"
+            title="Ver tutorial"
+          >
+            <HelpCircle size={18} className="text-muted-foreground" />
+          </motion.button>
+        )}
+
         {/* Dark mode toggle */}
         <motion.button
           whileTap={{ scale: 0.9 }}
@@ -182,6 +195,7 @@ export function Header({ onStartTutorial }: HeaderProps) {
           </Link>
           <Link
             href="/finances"
+            data-onboarding="nav-finances"
             className={cn(
               'flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl transition-colors',
               isFinances ? 'text-emerald-500' : 'text-muted-foreground'
