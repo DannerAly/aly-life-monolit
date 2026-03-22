@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { EmojiPicker } from '@/components/ui/EmojiPicker';
 import { ColorPicker } from '@/components/ui/ColorPicker';
-import type { HabitFormData } from '@/lib/types/database';
-import { CATEGORY_COLORS } from '@/constants/colors';
+import type { HabitFormData, HabitFrequency } from '@/lib/types/database';
+import { cn } from '@/lib/utils/cn';
 
 interface HabitFormProps {
   open: boolean;
@@ -14,6 +14,18 @@ interface HabitFormProps {
   initial?: Partial<HabitFormData>;
   mode?: 'create' | 'edit';
 }
+
+const FREQ_OPTIONS: { value: HabitFrequency; label: string; desc: string; goalLabel: string; goalPlaceholder: string }[] = [
+  { value: 'daily', label: 'Diario', desc: 'Se reinicia cada día', goalLabel: 'Meta diaria', goalPlaceholder: 'ej: 8 vasos, 30 minutos' },
+  { value: 'weekly', label: 'Semanal', desc: 'Días por semana', goalLabel: 'Días por semana', goalPlaceholder: 'ej: 5 días' },
+  { value: 'monthly', label: 'Mensual', desc: 'Días por mes', goalLabel: 'Días por mes', goalPlaceholder: 'ej: 20 días' },
+];
+
+const FREQ_UNIT_DEFAULTS: Record<HabitFrequency, string> = {
+  daily: 'veces',
+  weekly: 'días/semana',
+  monthly: 'días/mes',
+};
 
 export function HabitForm({
   open,
@@ -25,6 +37,7 @@ export function HabitForm({
   const [name, setName] = useState(initial?.name ?? '');
   const [emoji, setEmoji] = useState(initial?.emoji ?? '🎯');
   const [iconColor, setIconColor] = useState(initial?.icon_color ?? '#06b6d4');
+  const [frequency, setFrequency] = useState<HabitFrequency>(initial?.frequency ?? 'daily');
   const [dailyGoal, setDailyGoal] = useState(initial?.daily_goal ?? 1);
   const [unitLabel, setUnitLabel] = useState(initial?.unit_label ?? 'veces');
   const [loading, setLoading] = useState(false);
@@ -35,10 +48,23 @@ export function HabitForm({
       setName(initial.name ?? '');
       setEmoji(initial.emoji ?? '🎯');
       setIconColor(initial.icon_color ?? '#06b6d4');
+      setFrequency(initial.frequency ?? 'daily');
       setDailyGoal(initial.daily_goal ?? 1);
       setUnitLabel(initial.unit_label ?? 'veces');
     }
   }, [open, initial]);
+
+  const handleFrequencyChange = (freq: HabitFrequency) => {
+    setFrequency(freq);
+    setUnitLabel(FREQ_UNIT_DEFAULTS[freq]);
+    // Set sensible defaults
+    if (freq === 'weekly') setDailyGoal(prev => prev > 7 ? 5 : prev);
+    if (freq === 'monthly') setDailyGoal(prev => prev < 5 ? 20 : prev);
+    if (freq === 'daily') setDailyGoal(prev => prev > 30 ? 1 : prev);
+  };
+
+  const selectedFreq = FREQ_OPTIONS.find(f => f.value === frequency)!;
+  const maxGoal = frequency === 'weekly' ? 7 : frequency === 'monthly' ? 31 : 999;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,8 +82,9 @@ export function HabitForm({
       name: name.trim(),
       emoji,
       icon_color: iconColor,
-      daily_goal: dailyGoal,
-      unit_label: unitLabel.trim() || 'veces',
+      frequency,
+      daily_goal: Math.min(dailyGoal, maxGoal),
+      unit_label: unitLabel.trim() || FREQ_UNIT_DEFAULTS[frequency],
     });
     setLoading(false);
     if (result) {
@@ -66,6 +93,7 @@ export function HabitForm({
         setName('');
         setEmoji('🎯');
         setIconColor('#06b6d4');
+        setFrequency('daily');
         setDailyGoal(1);
         setUnitLabel('veces');
       }
@@ -73,6 +101,12 @@ export function HabitForm({
       setError('Error al guardar. Intenta de nuevo.');
     }
   };
+
+  const previewDesc = frequency === 'daily'
+    ? `${dailyGoal} ${unitLabel} al día`
+    : frequency === 'weekly'
+      ? `${dailyGoal} días por semana`
+      : `${dailyGoal} días por mes`;
 
   return (
     <Modal
@@ -95,16 +129,46 @@ export function HabitForm({
           </div>
         </div>
 
+        {/* Frequency selector */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Frecuencia</p>
+          <div className="flex gap-2">
+            {FREQ_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => handleFrequencyChange(opt.value)}
+                className={cn(
+                  'flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all text-center',
+                  frequency === opt.value
+                    ? 'text-white shadow-sm'
+                    : 'glass-button text-muted-foreground hover:text-foreground'
+                )}
+                style={frequency === opt.value ? { backgroundColor: iconColor } : undefined}
+              >
+                <div>{opt.label}</div>
+                <div className={cn(
+                  'text-[10px] mt-0.5',
+                  frequency === opt.value ? 'text-white/70' : 'text-muted-foreground/60'
+                )}>
+                  {opt.desc}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Meta diaria
+              {selectedFreq.goalLabel}
             </label>
             <input
               type="number"
               min={1}
+              max={maxGoal}
               value={dailyGoal}
-              onChange={e => setDailyGoal(Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={e => setDailyGoal(Math.max(1, Math.min(maxGoal, parseInt(e.target.value) || 1)))}
               className="mt-1 w-full px-4 py-2.5 rounded-xl glass-button text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 bg-transparent"
             />
           </div>
@@ -116,7 +180,7 @@ export function HabitForm({
               type="text"
               value={unitLabel}
               onChange={e => setUnitLabel(e.target.value)}
-              placeholder="ej: vasos, minutos, páginas"
+              placeholder={selectedFreq.goalPlaceholder}
               className="mt-1 w-full px-4 py-2.5 rounded-xl glass-button text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 bg-transparent"
             />
           </div>
@@ -139,7 +203,7 @@ export function HabitForm({
           <div>
             <p className="font-semibold text-sm">{name || 'Nombre del hábito'}</p>
             <p className="text-xs text-muted-foreground">
-              Meta: {dailyGoal} {unitLabel} al día
+              Meta: {previewDesc}
             </p>
           </div>
         </div>

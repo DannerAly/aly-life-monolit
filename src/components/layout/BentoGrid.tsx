@@ -217,6 +217,8 @@ export function BentoGrid({
         failedTasks={stats.failed}
         overallProgress={stats.avgProgress}
         categoryCount={categories.length}
+        habitsCompleted={habits.filter(h => h.goalMet).length}
+        habitsTotal={habits.length}
         onClick={onHeroClick}
         className="col-span-2 sm:col-span-4 row-span-4"
       />

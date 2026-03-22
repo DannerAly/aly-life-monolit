@@ -11,6 +11,8 @@ interface HeroStatsCardProps {
   failedTasks: number;
   overallProgress: number;
   categoryCount: number;
+  habitsCompleted?: number;
+  habitsTotal?: number;
   className?: string;
   onClick?: () => void;
 }
@@ -22,6 +24,8 @@ export function HeroStatsCard({
   failedTasks,
   overallProgress,
   categoryCount,
+  habitsCompleted = 0,
+  habitsTotal = 0,
   className,
   onClick,
 }: HeroStatsCardProps) {
@@ -82,10 +86,11 @@ export function HeroStatsCard({
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mt-4">
-        <StatPill label="Total" value={totalTasks} color="text-foreground" bg="bg-white/20 dark:bg-white/5" />
+      <div className="grid grid-cols-4 gap-2 mt-4">
+        <StatPill label="Objetivos" value={totalTasks} color="text-foreground" bg="bg-white/20 dark:bg-white/5" />
         <StatPill label="Completados" value={completedTasks} color="text-emerald-500" bg="bg-emerald-500/10" />
         <StatPill label="Fallidos" value={failedTasks} color="text-rose-500" bg="bg-rose-500/10" />
+        <StatPill label="Hábitos" value={habitsCompleted} suffix={habitsTotal > 0 ? `/${habitsTotal}` : undefined} color="text-cyan-500" bg="bg-cyan-500/10" />
       </div>
 
       <div className="mt-4">
@@ -110,18 +115,22 @@ export function HeroStatsCard({
 function StatPill({
   label,
   value,
+  suffix,
   color,
   bg,
 }: {
   label: string;
   value: number;
+  suffix?: string;
   color: string;
   bg: string;
 }) {
   return (
-    <div className={cn('rounded-2xl p-3 text-center backdrop-blur-sm', bg)}>
-      <p className={cn('text-2xl font-bold tabular-nums', color)}>{value}</p>
-      <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+    <div className={cn('rounded-2xl p-2.5 text-center backdrop-blur-sm', bg)}>
+      <p className={cn('text-xl font-bold tabular-nums', color)}>
+        {value}{suffix && <span className="text-sm font-medium opacity-60">{suffix}</span>}
+      </p>
+      <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
     </div>
   );
 }

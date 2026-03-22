@@ -48,7 +48,8 @@ export function HabitStatsModal({
           <div>
             <h2 className="text-lg font-semibold">{habit.name}</h2>
             <p className="text-xs text-muted-foreground">
-              Meta: {habit.daily_goal} {habit.unit_label}/día
+              Meta: {habit.daily_goal} {habit.unit_label}
+              {habit.frequency === 'weekly' ? '/semana' : habit.frequency === 'monthly' ? '/mes' : '/día'}
             </p>
           </div>
         </div>

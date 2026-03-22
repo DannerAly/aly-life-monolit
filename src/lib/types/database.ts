@@ -63,12 +63,15 @@ export interface GlobalTask extends TaskWithProgress {
 }
 
 // Habits
+export type HabitFrequency = 'daily' | 'weekly' | 'monthly';
+
 export interface Habit {
   id: string;
   user_id: string;
   name: string;
   emoji: string;
   icon_color: string;
+  frequency: HabitFrequency;
   daily_goal: number;
   unit_label: string;
   sort_order: number;
@@ -88,8 +91,10 @@ export interface HabitLog {
 }
 
 export interface HabitWithLog extends Habit {
-  todayValue: number;
-  progress: number; // 0-100
+  todayValue: number;     // value for today (daily: counter, weekly/monthly: 0 or 1)
+  periodValue: number;    // accumulated value in current period
+  periodGoal: number;     // goal for the period (= daily_goal for all frequencies)
+  progress: number;       // 0-100
   goalMet: boolean;
 }
 
@@ -97,6 +102,7 @@ export interface HabitFormData {
   name: string;
   emoji: string;
   icon_color: string;
+  frequency: HabitFrequency;
   daily_goal: number;
   unit_label: string;
 }

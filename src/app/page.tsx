@@ -187,6 +187,7 @@ export default function HomePage() {
                 name: editingHabitData.name,
                 emoji: editingHabitData.emoji,
                 icon_color: editingHabitData.icon_color,
+                frequency: editingHabitData.frequency,
                 daily_goal: editingHabitData.daily_goal,
                 unit_label: editingHabitData.unit_label,
               }

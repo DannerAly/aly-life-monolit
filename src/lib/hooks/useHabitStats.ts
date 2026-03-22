@@ -2,12 +2,21 @@
 
 import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import type { HabitStats } from '@/lib/types/database';
+import type { HabitStats, HabitFrequency } from '@/lib/types/database';
 
 const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 function dateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * For daily habits: a "goal met" day is when value >= daily_goal
+ * For weekly/monthly habits: a "goal met" day is when value >= 1 (they did it that day)
+ */
+function isDayMet(value: number, dailyGoal: number, frequency: HabitFrequency): boolean {
+  if (frequency === 'daily') return value >= dailyGoal;
+  return value >= 1;
 }
 
 export function useHabitStats(habitId: string | null) {
@@ -19,7 +28,7 @@ export function useHabitStats(habitId: string | null) {
     setLoading(true);
     try {
       const [habitRes, logsRes] = await Promise.all([
-        supabase.from('habits').select('daily_goal').eq('id', habitId).single(),
+        supabase.from('habits').select('daily_goal, frequency').eq('id', habitId).single(),
         supabase
           .from('habit_logs')
           .select('date, value')
@@ -31,6 +40,7 @@ export function useHabitStats(habitId: string | null) {
       if (logsRes.error) throw logsRes.error;
 
       const dailyGoal = habitRes.data.daily_goal as number;
+      const frequency = (habitRes.data.frequency ?? 'daily') as HabitFrequency;
       const logs = logsRes.data as { date: string; value: number }[];
       const logMap = new Map(logs.map(l => [l.date, l.value]));
 
@@ -54,16 +64,14 @@ export function useHabitStats(habitId: string | null) {
         d.setDate(d.getDate() - i);
         const ds = dateStr(d);
         const value = logMap.get(ds) ?? 0;
-        monthlyData.push({ date: ds, value, goalMet: value >= dailyGoal });
+        monthlyData.push({ date: ds, value, goalMet: isDayMet(value, dailyGoal, frequency) });
       }
 
-      // Streaks - calculate from today going backwards
-      let currentStreak = 0;
+      // Streaks — count consecutive days where the day's goal was met
       let bestStreak = 0;
       let streak = 0;
       let totalDaysGoalMet = 0;
 
-      // Sort dates ascending for streak calculation
       const allDates: string[] = [];
       const earliest = logs.length > 0 ? logs[logs.length - 1].date : dateStr(new Date());
       const start = new Date(earliest);
@@ -74,7 +82,7 @@ export function useHabitStats(habitId: string | null) {
 
       for (const ds of allDates) {
         const val = logMap.get(ds) ?? 0;
-        if (val >= dailyGoal) {
+        if (isDayMet(val, dailyGoal, frequency)) {
           streak++;
           totalDaysGoalMet++;
           if (streak > bestStreak) bestStreak = streak;
@@ -84,13 +92,13 @@ export function useHabitStats(habitId: string | null) {
       }
 
       // Current streak: count backwards from today
-      currentStreak = 0;
+      let currentStreak = 0;
       for (let i = 0; ; i++) {
         const d = new Date();
         d.setDate(d.getDate() - i);
         const ds = dateStr(d);
         const val = logMap.get(ds) ?? 0;
-        if (val >= dailyGoal) {
+        if (isDayMet(val, dailyGoal, frequency)) {
           currentStreak++;
         } else {
           break;

@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'motion/react';
-import { Plus, Minus } from 'lucide-react';
+import { Plus, Minus, Check } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import type { HabitWithLog } from '@/lib/types/database';
 
@@ -15,6 +15,12 @@ interface HabitCardProps {
   compact?: boolean;
 }
 
+const FREQ_LABEL: Record<string, string> = {
+  daily: 'hoy',
+  weekly: 'esta semana',
+  monthly: 'este mes',
+};
+
 export function HabitCard({
   habit,
   onIncrement,
@@ -24,9 +30,17 @@ export function HabitCard({
   className,
   compact,
 }: HabitCardProps) {
-  const { emoji, name, todayValue, daily_goal, progress, goalMet, icon_color, unit_label } = habit;
-  const showGrid = daily_goal <= 12;
-  const gridCols = Math.min(4, daily_goal);
+  const { emoji, name, todayValue, periodValue, periodGoal, progress, goalMet, icon_color, unit_label, frequency } = habit;
+  const freq = frequency ?? 'daily';
+  const isDaily = freq === 'daily';
+
+  // For daily: show grid/counter of todayValue vs periodGoal
+  // For weekly/monthly: show periodValue vs periodGoal (days completed)
+  const displayValue = isDaily ? todayValue : periodValue;
+  const displayGoal = periodGoal;
+  const showGrid = isDaily && displayGoal <= 12;
+  const gridCols = Math.min(4, displayGoal);
+  const todayDone = !isDaily && todayValue >= 1;
 
   if (compact) {
     return (
@@ -50,16 +64,30 @@ export function HabitCard({
           className="text-xs font-bold tabular-nums flex-shrink-0"
           style={{ color: goalMet ? icon_color : undefined }}
         >
-          {todayValue}/{daily_goal}
+          {displayValue}/{displayGoal}
         </span>
-        <motion.button
-          whileTap={{ scale: 0.85 }}
-          onClick={(e) => { e.stopPropagation(); onIncrement(); }}
-          className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-white"
-          style={{ backgroundColor: `${icon_color}cc` }}
-        >
-          <Plus size={12} />
-        </motion.button>
+        {isDaily ? (
+          <motion.button
+            whileTap={{ scale: 0.85 }}
+            onClick={(e) => { e.stopPropagation(); onIncrement(); }}
+            className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-white"
+            style={{ backgroundColor: `${icon_color}cc` }}
+          >
+            <Plus size={12} />
+          </motion.button>
+        ) : (
+          <motion.button
+            whileTap={{ scale: 0.85 }}
+            onClick={(e) => { e.stopPropagation(); todayDone ? onDecrement() : onIncrement(); }}
+            className={cn(
+              'flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center transition-colors',
+              todayDone ? 'text-white' : 'glass-button'
+            )}
+            style={todayDone ? { backgroundColor: icon_color } : undefined}
+          >
+            <Check size={12} />
+          </motion.button>
+        )}
         {goalMet && <span className="text-xs absolute top-1 right-1">🎉</span>}
       </motion.div>
     );
@@ -79,7 +107,7 @@ export function HabitCard({
     >
       {/* Clickable header area */}
       <div onClick={onClick}>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2">
             <span className="text-lg">{emoji}</span>
             <h3 className="text-sm font-semibold">{name}</h3>
@@ -88,17 +116,20 @@ export function HabitCard({
             className={cn('text-sm font-bold tabular-nums')}
             style={{ color: goalMet ? icon_color : undefined }}
           >
-            {todayValue}/{daily_goal}
+            {displayValue}/{displayGoal}
           </span>
         </div>
+        <p className="text-[10px] text-muted-foreground mb-2">
+          {isDaily ? unit_label : `${FREQ_LABEL[freq]} · ${unit_label}`}
+        </p>
 
-        {/* Visual grid or progress counter */}
-        {showGrid ? (
+        {/* Visual grid (daily ≤12), day dots (weekly/monthly), or counter (daily >12) */}
+        {isDaily && showGrid ? (
           <div
             className="gap-2 mb-3"
             style={{ display: 'grid', gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}
           >
-            {Array.from({ length: daily_goal }).map((_, i) => {
+            {Array.from({ length: displayGoal }).map((_, i) => {
               const filled = i < todayValue;
               return (
                 <motion.div
@@ -120,36 +151,71 @@ export function HabitCard({
               );
             })}
           </div>
-        ) : (
+        ) : isDaily ? (
           <div className="flex items-center justify-center mb-3">
             <span className="text-3xl font-bold tabular-nums" style={{ color: icon_color }}>
               {todayValue}
             </span>
-            <span className="text-sm text-muted-foreground ml-1">/ {daily_goal} {unit_label}</span>
+            <span className="text-sm text-muted-foreground ml-1">/ {displayGoal} {unit_label}</span>
+          </div>
+        ) : (
+          /* Weekly/monthly: show day dots for the period */
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {Array.from({ length: displayGoal }).map((_, i) => {
+              const filled = i < periodValue;
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    'w-5 h-5 rounded-md flex items-center justify-center transition-colors text-[10px]',
+                    filled ? 'text-white' : 'bg-white/5'
+                  )}
+                  style={filled ? { backgroundColor: `${icon_color}80` } : undefined}
+                >
+                  {filled && <Check size={10} />}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
 
       {/* Controls */}
       <div className="flex items-center gap-2 mb-3">
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={(e) => { e.stopPropagation(); onDecrement(); }}
-          disabled={todayValue <= 0}
-          className="glass-button rounded-lg w-8 h-8 flex items-center justify-center disabled:opacity-30"
-        >
-          <Minus size={14} />
-        </motion.button>
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={(e) => { e.stopPropagation(); onIncrement(); }}
-          className="flex-1 rounded-lg h-8 flex items-center justify-center text-white text-xs font-medium transition-colors"
-          style={{ backgroundColor: `${icon_color}cc` }}
-          whileHover={{ backgroundColor: icon_color }}
-        >
-          <Plus size={14} className="mr-1" />
-          {unit_label}
-        </motion.button>
+        {isDaily ? (
+          <>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={(e) => { e.stopPropagation(); onDecrement(); }}
+              disabled={todayValue <= 0}
+              className="glass-button rounded-lg w-8 h-8 flex items-center justify-center disabled:opacity-30"
+            >
+              <Minus size={14} />
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={(e) => { e.stopPropagation(); onIncrement(); }}
+              className="flex-1 rounded-lg h-8 flex items-center justify-center text-white text-xs font-medium transition-colors"
+              style={{ backgroundColor: `${icon_color}cc` }}
+            >
+              <Plus size={14} className="mr-1" />
+              {unit_label}
+            </motion.button>
+          </>
+        ) : (
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={(e) => { e.stopPropagation(); todayDone ? onDecrement() : onIncrement(); }}
+            className={cn(
+              'flex-1 rounded-lg h-8 flex items-center justify-center text-xs font-medium transition-colors',
+              todayDone ? 'glass-button' : 'text-white'
+            )}
+            style={!todayDone ? { backgroundColor: `${icon_color}cc` } : undefined}
+          >
+            <Check size={14} className="mr-1" />
+            {todayDone ? 'Hecho hoy ✓' : 'Marcar hoy'}
+          </motion.button>
+        )}
       </div>
 
       {/* Progress bar */}

@@ -22,7 +22,7 @@ import { useTransactionFilters } from '@/lib/hooks/useTransactionFilters';
 import { useCurrency } from '@/lib/hooks/useCurrency';
 import { useImportParser } from '@/lib/hooks/useImportParser';
 import { hashTransaction } from '@/lib/utils/hashTransaction';
-import type { TransactionFormData, TransactionWithCategory, PeriodView } from '@/lib/types/database';
+import type { TransactionFormData, TransactionWithCategory, FinanceCategoryFormData, FinanceCategory, PeriodView } from '@/lib/types/database';
 import { currentPeriodStr, getPeriodSummaryLabel } from '@/lib/utils/finance';
 
 const CURRENCIES = [
@@ -84,6 +84,8 @@ export default function FinancesPage() {
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<TransactionWithCategory | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingCategory, setEditingCategory] = useState<FinanceCategory | null>(null);
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
 
   // Initial fetch
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -149,6 +151,23 @@ export default function FinancesPage() {
     importParser.reset();
   };
 
+  const handleEditCategory = async (data: FinanceCategoryFormData) => {
+    if (!editingCategory) return false;
+    const result = await updateCategory(editingCategory.id, data);
+    if (result) {
+      setEditingCategory(null);
+      await fetchTransactions(currentPeriod);
+    }
+    return result;
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!deletingCategoryId) return;
+    await deleteCategory(deletingCategoryId);
+    setDeletingCategoryId(null);
+    await fetchTransactions(currentPeriod);
+  };
+
   return (
     <div className="min-h-screen mesh-bg">
       <Header />
@@ -209,6 +228,32 @@ export default function FinancesPage() {
                 {c.label}
               </button>
             ))}
+          </div>
+        )}
+
+        {/* Finance categories - editable chips */}
+        {categories.length > 0 && (
+          <div className="mb-6">
+            <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Categorías</p>
+            <div className="flex flex-wrap gap-2">
+              {categories.map(cat => (
+                <div
+                  key={cat.id}
+                  className="glass-button rounded-xl px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 group cursor-pointer hover:scale-105 transition-transform"
+                  style={{ borderLeft: `3px solid ${cat.color}` }}
+                  onClick={() => setEditingCategory(cat)}
+                >
+                  <span>{cat.emoji || '📁'}</span>
+                  <span>{cat.name}</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setDeletingCategoryId(cat.id); }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-rose-400 hover:text-rose-500 ml-1"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -332,12 +377,35 @@ export default function FinancesPage() {
         onDeleteRule={deleteRule}
       />
 
+      {editingCategory && (
+        <FinanceCategoryForm
+          open={!!editingCategory}
+          onClose={() => setEditingCategory(null)}
+          onSubmit={handleEditCategory}
+          mode="edit"
+          initial={{
+            name: editingCategory.name,
+            emoji: editingCategory.emoji ?? undefined,
+            color: editingCategory.color,
+            type: editingCategory.type,
+          }}
+        />
+      )}
+
       <ConfirmDialog
         open={!!deletingId}
         onClose={() => setDeletingId(null)}
         onConfirm={handleDeleteConfirm}
         title="¿Eliminar transacción?"
         description="Esta acción no se puede deshacer."
+      />
+
+      <ConfirmDialog
+        open={!!deletingCategoryId}
+        onClose={() => setDeletingCategoryId(null)}
+        onConfirm={handleDeleteCategory}
+        title="¿Eliminar categoría?"
+        description="Las transacciones asociadas quedarán sin categoría. Esta acción no se puede deshacer."
       />
     </div>
   );
