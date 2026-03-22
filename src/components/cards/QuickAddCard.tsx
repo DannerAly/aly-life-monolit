@@ -6,10 +6,12 @@ import { cn } from '@/lib/utils/cn';
 
 interface QuickAddCardProps {
   onClick: () => void;
+  label?: string;
+  sublabel?: string;
   className?: string;
 }
 
-export function QuickAddCard({ onClick, className }: QuickAddCardProps) {
+export function QuickAddCard({ onClick, label = 'Nueva área', sublabel = 'Trabajo, Salud, Estudio...', className }: QuickAddCardProps) {
   return (
     <motion.button
       initial={{ opacity: 0, y: 24 }}
@@ -32,10 +34,10 @@ export function QuickAddCard({ onClick, className }: QuickAddCardProps) {
       </motion.div>
       <div>
         <p className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
-          Nueva área
+          {label}
         </p>
         <p className="text-xs text-muted-foreground/60 mt-0.5">
-          Trabajo, Salud, Estudio...
+          {sublabel}
         </p>
       </div>
     </motion.button>

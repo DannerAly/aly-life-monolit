@@ -28,6 +28,7 @@ export function TaskForm({
   const [targetValue, setTargetValue] = useState(initial?.target_value ?? 5);
   const [dueDate, setDueDate] = useState(initial?.due_date ?? '');
   const [subFilter, setSubFilter] = useState(initial?.sub_filter ?? '');
+  const [priority, setPriority] = useState<number | null>(initial?.priority ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -46,6 +47,7 @@ export function TaskForm({
       target_value: taskType === 'one_time' ? 1 : targetValue,
       due_date: dueDate || undefined,
       sub_filter: subFilter || undefined,
+      priority,
     });
     setLoading(false);
     if (result) {
@@ -57,6 +59,7 @@ export function TaskForm({
         setTargetValue(5);
         setDueDate('');
         setSubFilter('');
+        setPriority(null);
       }
     } else {
       setError('Error al guardar. Intenta de nuevo.');
@@ -150,6 +153,35 @@ export function TaskForm({
             placeholder="ej: Deportivo, Académico, Personal..."
             className="w-full px-4 py-2.5 rounded-xl glass-button text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 bg-transparent"
           />
+        </div>
+
+        {/* Priority */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+            Prioridad <span className="normal-case font-normal">(opcional)</span>
+          </p>
+          <div className="flex gap-2">
+            {([
+              { value: 1, label: '🔴 Alta' },
+              { value: 2, label: '🟡 Media' },
+              { value: 3, label: '🔵 Baja' },
+              { value: null, label: 'Sin prioridad' },
+            ] as const).map(opt => (
+              <button
+                key={String(opt.value)}
+                type="button"
+                onClick={() => setPriority(opt.value)}
+                className={`flex-1 py-2 px-2 rounded-xl text-xs font-medium transition-all ${
+                  priority === opt.value
+                    ? 'text-white'
+                    : 'glass-button text-muted-foreground'
+                }`}
+                style={priority === opt.value ? { backgroundColor: categoryColor } : undefined}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Due date */}

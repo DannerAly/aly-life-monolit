@@ -10,7 +10,7 @@ export function useTaskFilters(tasks: TaskWithProgress[]) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter(task => {
+    const filtered = tasks.filter(task => {
       const matchesSearch =
         searchQuery === '' ||
         task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -20,6 +20,13 @@ export function useTaskFilters(tasks: TaskWithProgress[]) {
         statusFilter === 'all' || task.status === statusFilter;
 
       return matchesSearch && matchesStatus;
+    });
+
+    // Auto-sort: completed tasks to bottom, preserve original order otherwise
+    return filtered.sort((a, b) => {
+      const aCompleted = a.status === 'completed' ? 1 : 0;
+      const bCompleted = b.status === 'completed' ? 1 : 0;
+      return aCompleted - bCompleted;
     });
   }, [tasks, searchQuery, statusFilter]);
 

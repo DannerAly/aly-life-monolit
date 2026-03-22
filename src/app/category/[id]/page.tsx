@@ -179,6 +179,7 @@ export default function CategoryPage({ params }: PageProps) {
                 target_value: editingTask.target_value,
                 due_date: editingTask.due_date ?? undefined,
                 sub_filter: editingTask.sub_filter ?? undefined,
+                priority: editingTask.priority,
               }}
               mode="edit"
               categoryColor={liveCategory.color}

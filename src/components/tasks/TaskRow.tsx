@@ -9,9 +9,16 @@ import { formatRelativeDate, isOverdue } from '@/lib/utils/date';
 import type { TaskWithProgress } from '@/lib/types/database';
 import { cn } from '@/lib/utils/cn';
 
+interface CategoryMeta {
+  name: string;
+  emoji: string | null;
+  color: string;
+}
+
 interface TaskRowProps {
   task: TaskWithProgress;
   categoryColor: string;
+  categoryMeta?: CategoryMeta;
   onIncrement: (id: string) => Promise<boolean>;
   onDecrement: (id: string) => Promise<boolean>;
   onToggle: (id: string) => Promise<boolean>;
@@ -22,6 +29,7 @@ interface TaskRowProps {
 export function TaskRow({
   task,
   categoryColor,
+  categoryMeta,
   onIncrement,
   onDecrement,
   onToggle,
@@ -115,6 +123,18 @@ export function TaskRow({
           )}
         </div>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
+          {categoryMeta && (
+            <span
+              className="text-[10px] px-2 py-0.5 rounded-full font-medium border"
+              style={{
+                backgroundColor: `${categoryMeta.color}15`,
+                borderColor: `${categoryMeta.color}30`,
+                color: categoryMeta.color,
+              }}
+            >
+              {categoryMeta.emoji && `${categoryMeta.emoji} `}{categoryMeta.name}
+            </span>
+          )}
           <StatusBadge status={task.status} />
           {task.due_date && (
             <span className={cn('text-xs', overdue ? 'text-rose-500' : 'text-muted-foreground')}>

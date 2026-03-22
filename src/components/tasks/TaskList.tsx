@@ -1,8 +1,10 @@
 'use client';
 
 import { AnimatePresence, motion } from 'motion/react';
+import { Loader2 } from 'lucide-react';
 import { TaskRow } from './TaskRow';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { useInfiniteScroll } from '@/lib/hooks/useInfiniteScroll';
 import type { TaskWithProgress } from '@/lib/types/database';
 
 interface TaskListProps {
@@ -26,6 +28,8 @@ export function TaskList({
   onDelete,
   emptyMessage,
 }: TaskListProps) {
+  const { visibleItems, hasMore, sentinelRef } = useInfiniteScroll({ items: tasks });
+
   if (tasks.length === 0) {
     return (
       <EmptyState
@@ -39,7 +43,7 @@ export function TaskList({
   return (
     <motion.div className="flex flex-col gap-3">
       <AnimatePresence mode="popLayout">
-        {tasks.map(task => (
+        {visibleItems.map(task => (
           <TaskRow
             key={task.id}
             task={task}
@@ -52,6 +56,13 @@ export function TaskList({
           />
         ))}
       </AnimatePresence>
+
+      {/* Infinite scroll sentinel */}
+      {hasMore && (
+        <div ref={sentinelRef} className="flex items-center justify-center py-4">
+          <Loader2 size={18} className="animate-spin text-muted-foreground/50" />
+        </div>
+      )}
     </motion.div>
   );
 }

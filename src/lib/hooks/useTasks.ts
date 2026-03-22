@@ -61,6 +61,7 @@ export function useTasks(categoryId?: string) {
           status: 'active',
           is_completed: false,
           sub_filter: data.sub_filter || null,
+          priority: data.priority ?? null,
           sort_order: maxOrder + 1,
         })
         .select()
@@ -84,6 +85,7 @@ export function useTasks(categoryId?: string) {
       if (data.target_value !== undefined) updatePayload.target_value = data.target_value;
       if (data.due_date !== undefined) updatePayload.due_date = data.due_date || null;
       if (data.sub_filter !== undefined) updatePayload.sub_filter = data.sub_filter || null;
+      if (data.priority !== undefined) updatePayload.priority = data.priority ?? null;
 
       const { data: updated, error } = await supabase
         .from('tasks')
