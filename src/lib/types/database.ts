@@ -110,7 +110,116 @@ export interface HabitStats {
   monthlyData: { date: string; value: number; goalMet: boolean }[];
 }
 
+export type GridItemSize = 'mini' | '1x1' | '2x1' | '1x2' | '2x2';
+
 export interface GridItem {
   type: 'category' | 'habit';
   id: string;
+  size?: GridItemSize;
+}
+
+// ── Finance Types ──────────────────────────────────
+export type TransactionType = 'income' | 'expense';
+export type FinanceCategoryType = 'income' | 'expense' | 'both';
+
+export interface FinanceCategory {
+  id: string;
+  user_id: string;
+  name: string;
+  emoji: string | null;
+  color: string;
+  type: FinanceCategoryType;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Transaction {
+  id: string;
+  user_id: string;
+  category_id: string | null;
+  type: TransactionType;
+  amount: number;
+  description: string;
+  date: string;
+  is_imported: boolean;
+  import_hash: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TransactionWithCategory extends Transaction {
+  category_name: string | null;
+  category_emoji: string | null;
+  category_color: string | null;
+}
+
+export interface ClassificationRule {
+  id: string;
+  user_id: string;
+  keyword: string;
+  category_id: string;
+  transaction_type: TransactionType;
+  priority: number;
+  created_at: string;
+}
+
+export interface FinanceCategoryFormData {
+  name: string;
+  emoji?: string;
+  color: string;
+  type: FinanceCategoryType;
+}
+
+export interface TransactionFormData {
+  type: TransactionType;
+  amount: number;
+  description: string;
+  date: string;
+  category_id?: string;
+}
+
+export interface ClassificationRuleFormData {
+  keyword: string;
+  category_id: string;
+  transaction_type: TransactionType;
+}
+
+export interface MonthlySummary {
+  month: string;
+  totalIncome: number;
+  totalExpense: number;
+  balance: number;
+}
+
+export interface CategoryBreakdown {
+  category_id: string | null;
+  category_name: string;
+  category_emoji: string | null;
+  category_color: string;
+  total: number;
+  percentage: number;
+  count: number;
+}
+
+// ── Period Views ──
+export type PeriodView = 'week' | 'month' | 'year';
+
+export interface PeriodSummary {
+  period: string;
+  label: string;
+  totalIncome: number;
+  totalExpense: number;
+  balance: number;
+}
+
+export interface ImportPreviewRow {
+  date: string;
+  description: string;
+  amount: number;
+  type: TransactionType;
+  suggestedCategory: FinanceCategory | null;
+  matchedRule: ClassificationRule | null;
+  isDuplicate: boolean;
+  selected: boolean;
 }

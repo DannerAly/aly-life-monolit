@@ -12,6 +12,7 @@ interface HeroStatsCardProps {
   overallProgress: number;
   categoryCount: number;
   className?: string;
+  onClick?: () => void;
 }
 
 export function HeroStatsCard({
@@ -22,6 +23,7 @@ export function HeroStatsCard({
   overallProgress,
   categoryCount,
   className,
+  onClick,
 }: HeroStatsCardProps) {
   const getMotivation = (progress: number) => {
     if (progress === 0) return 'El viaje de mil millas empieza con un paso 🚀';
@@ -33,11 +35,16 @@ export function HeroStatsCard({
 
   return (
     <motion.div
+      data-onboarding="hero"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
+      whileHover={onClick ? { scale: 1.01 } : undefined}
+      whileTap={onClick ? { scale: 0.99 } : undefined}
+      onClick={onClick}
       className={cn(
         'glass-card col-span-2 row-span-2 p-7 flex flex-col justify-between overflow-hidden relative',
+        onClick && 'cursor-pointer',
         className
       )}
       style={{

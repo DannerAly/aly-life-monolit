@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import type { Task, TaskWithProgress, TaskFormData } from '@/lib/types/database';
 import { withProgress, deriveStatus } from '@/lib/utils/progress';
@@ -45,9 +45,12 @@ export function useTasks(categoryId?: string) {
     }
   }, [categoryId]);
 
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
+
   const createTask = useCallback(async (catId: string, data: TaskFormData): Promise<Task | null> => {
     try {
-      const maxOrder = tasks.reduce((max, t) => Math.max(max, t.sort_order), -1);
+      const maxOrder = tasksRef.current.reduce((max, t) => Math.max(max, t.sort_order), -1);
       const { data: created, error } = await supabase
         .from('tasks')
         .insert({
@@ -74,7 +77,7 @@ export function useTasks(categoryId?: string) {
       setError(err instanceof Error ? err.message : 'Error al crear tarea');
       return null;
     }
-  }, [tasks]);
+  }, []);
 
   const updateTask = useCallback(async (id: string, data: Partial<TaskFormData>): Promise<boolean> => {
     try {
@@ -116,7 +119,7 @@ export function useTasks(categoryId?: string) {
   }, []);
 
   const incrementTask = useCallback(async (id: string): Promise<boolean> => {
-    const task = tasks.find(t => t.id === id);
+    const task = tasksRef.current.find(t => t.id === id);
     if (!task) return false;
     const newValue = Math.min(task.current_value + 1, task.target_value);
     const newStatus = newValue >= task.target_value ? 'completed' : task.status;
@@ -137,10 +140,10 @@ export function useTasks(categoryId?: string) {
       setError(err instanceof Error ? err.message : 'Error al incrementar tarea');
       return false;
     }
-  }, [tasks]);
+  }, []);
 
   const decrementTask = useCallback(async (id: string): Promise<boolean> => {
-    const task = tasks.find(t => t.id === id);
+    const task = tasksRef.current.find(t => t.id === id);
     if (!task || task.current_value <= 0) return false;
     const newValue = task.current_value - 1;
     const newStatus = deriveStatus({ ...task, current_value: newValue });
@@ -159,10 +162,10 @@ export function useTasks(categoryId?: string) {
       setError(err instanceof Error ? err.message : 'Error al decrementar tarea');
       return false;
     }
-  }, [tasks]);
+  }, []);
 
   const toggleOneTime = useCallback(async (id: string): Promise<boolean> => {
-    const task = tasks.find(t => t.id === id);
+    const task = tasksRef.current.find(t => t.id === id);
     if (!task || task.task_type !== 'one_time') return false;
     const newValue = task.current_value === 0 ? 1 : 0;
     const newStatus = newValue === 1 ? 'completed' : 'active';
@@ -181,7 +184,7 @@ export function useTasks(categoryId?: string) {
       setError(err instanceof Error ? err.message : 'Error al actualizar tarea');
       return false;
     }
-  }, [tasks]);
+  }, []);
 
   return {
     tasks,

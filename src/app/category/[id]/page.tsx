@@ -36,10 +36,11 @@ export default function CategoryPage({ params }: PageProps) {
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [deletingCat, setDeletingCat] = useState(false);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchCategories();
     fetchTasks(id);
-  }, [id, fetchCategories, fetchTasks]);
+  }, [id]);
 
   const category = categories.find(c => c.id === id);
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import type { Category, Task, GlobalTask } from '@/lib/types/database';
 import { withProgress, deriveStatus } from '@/lib/utils/progress';
@@ -82,8 +82,11 @@ export function useGlobalTasks() {
     );
   };
 
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
+
   const incrementTask = useCallback(async (id: string): Promise<boolean> => {
-    const task = tasks.find(t => t.id === id);
+    const task = tasksRef.current.find(t => t.id === id);
     if (!task) return false;
     const newValue = Math.min(task.current_value + 1, task.target_value);
     const newStatus = newValue >= task.target_value ? 'completed' : task.status;
@@ -102,10 +105,10 @@ export function useGlobalTasks() {
     } catch {
       return false;
     }
-  }, [tasks]);
+  }, []);
 
   const decrementTask = useCallback(async (id: string): Promise<boolean> => {
-    const task = tasks.find(t => t.id === id);
+    const task = tasksRef.current.find(t => t.id === id);
     if (!task || task.current_value <= 0) return false;
     const newValue = task.current_value - 1;
     const newStatus = deriveStatus({ ...task, current_value: newValue });
@@ -123,10 +126,10 @@ export function useGlobalTasks() {
     } catch {
       return false;
     }
-  }, [tasks]);
+  }, []);
 
   const toggleOneTime = useCallback(async (id: string): Promise<boolean> => {
-    const task = tasks.find(t => t.id === id);
+    const task = tasksRef.current.find(t => t.id === id);
     if (!task || task.task_type !== 'one_time') return false;
     const newValue = task.current_value === 0 ? 1 : 0;
     const newStatus = newValue === 1 ? 'completed' : 'active';
@@ -144,7 +147,7 @@ export function useGlobalTasks() {
     } catch {
       return false;
     }
-  }, [tasks]);
+  }, []);
 
   const updateTask = useCallback(async (id: string, data: Partial<import('@/lib/types/database').TaskFormData>): Promise<boolean> => {
     try {

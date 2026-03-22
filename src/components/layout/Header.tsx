@@ -1,16 +1,27 @@
 'use client';
 
 import { useState } from 'react';
-import { Moon, Sun, Zap, LogOut, ChevronDown } from 'lucide-react';
+import { Moon, Sun, Zap, LogOut, ChevronDown, HelpCircle } from 'lucide-react';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import Image from 'next/image';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { cn } from '@/lib/utils/cn';
 
-export function Header() {
+interface HeaderProps {
+  onStartTutorial?: () => void;
+}
+
+export function Header({ onStartTutorial }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
   const { user, signOut } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const pathname = usePathname();
+
+  const isFinances = pathname === '/finances';
+  const isObjectives = !isFinances;
 
   // Google OAuth manda los datos en user_metadata
   const meta = user?.user_metadata ?? {};
@@ -33,6 +44,37 @@ export function Header() {
           aly<span className="text-blue-500">.</span>life
         </span>
       </motion.div>
+
+      {/* Navigation Pills */}
+      <motion.nav
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="hidden sm:flex gap-1 glass-card rounded-2xl p-1"
+      >
+        <Link
+          href="/"
+          className={cn(
+            'px-4 py-1.5 rounded-xl text-xs font-medium transition-all',
+            isObjectives
+              ? 'bg-blue-500 text-white shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          Objetivos
+        </Link>
+        <Link
+          href="/finances"
+          data-onboarding="nav-finances"
+          className={cn(
+            'px-4 py-1.5 rounded-xl text-xs font-medium transition-all',
+            isFinances
+              ? 'bg-emerald-500 text-white shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          Finanzas
+        </Link>
+      </motion.nav>
 
       {/* Right side */}
       <motion.div
@@ -101,6 +143,15 @@ export function Header() {
                       <p className="text-sm font-medium truncate">{name}</p>
                       <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                     </div>
+                    {onStartTutorial && (
+                      <button
+                        onClick={() => { onStartTutorial(); setShowUserMenu(false); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-blue-500/10 hover:text-blue-500 transition-colors text-left"
+                      >
+                        <HelpCircle size={14} />
+                        Ver tutorial
+                      </button>
+                    )}
                     <button
                       onClick={() => { signOut(); setShowUserMenu(false); }}
                       className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm hover:bg-rose-500/10 hover:text-rose-500 transition-colors text-left"

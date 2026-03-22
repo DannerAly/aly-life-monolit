@@ -9,11 +9,13 @@ interface QuickAddCardProps {
   label?: string;
   sublabel?: string;
   className?: string;
+  dataOnboarding?: string;
 }
 
-export function QuickAddCard({ onClick, label = 'Nueva área', sublabel = 'Trabajo, Salud, Estudio...', className }: QuickAddCardProps) {
+export function QuickAddCard({ onClick, label = 'Nueva área', sublabel = 'Trabajo, Salud, Estudio...', className, dataOnboarding }: QuickAddCardProps) {
   return (
     <motion.button
+      data-onboarding={dataOnboarding}
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.5 }}

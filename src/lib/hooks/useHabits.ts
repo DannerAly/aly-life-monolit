@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import type { Habit, HabitWithLog, HabitFormData } from '@/lib/types/database';
 
@@ -34,8 +34,7 @@ export function useHabits() {
           .eq('date', today),
       ]);
 
-      if (habitsRes.error) throw habitsRes.error;
-      if (logsRes.error) throw logsRes.error;
+      if (habitsRes.error || logsRes.error) { setLoading(false); return; }
 
       const logMap = new Map(
         (logsRes.data ?? []).map(log => [log.habit_id, log.value as number])
@@ -53,12 +52,15 @@ export function useHabits() {
     }
   }, []);
 
+  const habitsRef = useRef(habits);
+  habitsRef.current = habits;
+
   const createHabit = useCallback(async (data: HabitFormData): Promise<Habit | null> => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
 
-      const maxOrder = habits.reduce((max, h) => Math.max(max, h.sort_order), -1);
+      const maxOrder = habitsRef.current.reduce((max, h) => Math.max(max, h.sort_order), -1);
 
       const { data: created, error } = await supabase
         .from('habits')
@@ -80,7 +82,7 @@ export function useHabits() {
     } catch {
       return null;
     }
-  }, [habits, fetchHabits]);
+  }, [fetchHabits]);
 
   const updateHabit = useCallback(async (id: string, data: Partial<HabitFormData>): Promise<boolean> => {
     try {
@@ -108,24 +110,22 @@ export function useHabits() {
   }, []);
 
   const incrementHabit = useCallback(async (id: string) => {
-    const habit = habits.find(h => h.id === id);
-    if (!habit) return;
+    let newValue = 0;
 
-    const newValue = habit.todayValue + 1;
-
-    // Optimistic update
     setHabits(prev =>
-      prev.map(h =>
-        h.id === id
-          ? {
-              ...h,
-              todayValue: newValue,
-              progress: Math.min(Math.round((newValue / h.daily_goal) * 100), 100),
-              goalMet: newValue >= h.daily_goal,
-            }
-          : h
-      )
+      prev.map(h => {
+        if (h.id !== id) return h;
+        newValue = h.todayValue + 1;
+        return {
+          ...h,
+          todayValue: newValue,
+          progress: Math.min(Math.round((newValue / h.daily_goal) * 100), 100),
+          goalMet: newValue >= h.daily_goal,
+        };
+      })
     );
+
+    if (newValue === 0) return;
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -142,27 +142,26 @@ export function useHabits() {
         },
         { onConflict: 'habit_id,user_id,date' }
       );
-  }, [habits]);
+  }, []);
 
   const decrementHabit = useCallback(async (id: string) => {
-    const habit = habits.find(h => h.id === id);
-    if (!habit || habit.todayValue <= 0) return;
+    let newValue = -1;
 
-    const newValue = habit.todayValue - 1;
-
-    // Optimistic update
     setHabits(prev =>
-      prev.map(h =>
-        h.id === id
-          ? {
-              ...h,
-              todayValue: newValue,
-              progress: Math.min(Math.round((newValue / h.daily_goal) * 100), 100),
-              goalMet: newValue >= h.daily_goal,
-            }
-          : h
-      )
+      prev.map(h => {
+        if (h.id !== id) return h;
+        if (h.todayValue <= 0) return h;
+        newValue = h.todayValue - 1;
+        return {
+          ...h,
+          todayValue: newValue,
+          progress: Math.min(Math.round((newValue / h.daily_goal) * 100), 100),
+          goalMet: newValue >= h.daily_goal,
+        };
+      })
     );
+
+    if (newValue < 0) return;
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -179,7 +178,7 @@ export function useHabits() {
         },
         { onConflict: 'habit_id,user_id,date' }
       );
-  }, [habits]);
+  }, []);
 
   return {
     habits,

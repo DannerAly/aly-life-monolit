@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import type { Category, CategoryWithTasks, CategoryFormData, Task } from '@/lib/types/database';
 import { calculateCategoryAverage, deriveStatus } from '@/lib/utils/progress';
@@ -68,10 +68,13 @@ export function useCategories() {
     }
   }, []);
 
+  const categoriesRef = useRef(categories);
+  categoriesRef.current = categories;
+
   const createCategory = useCallback(async (data: CategoryFormData): Promise<Category | null> => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const maxOrder = categories.reduce((max, c) => Math.max(max, c.sort_order), -1);
+      const maxOrder = categoriesRef.current.reduce((max, c) => Math.max(max, c.sort_order), -1);
       const { data: created, error } = await supabase
         .from('categories')
         .insert({
@@ -90,7 +93,7 @@ export function useCategories() {
       setError(err instanceof Error ? err.message : 'Error al crear categoría');
       return null;
     }
-  }, [categories, fetchCategories]);
+  }, [fetchCategories]);
 
   const updateCategory = useCallback(async (id: string, data: Partial<CategoryFormData>): Promise<boolean> => {
     try {

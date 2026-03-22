@@ -4,35 +4,44 @@ import { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { EmojiPicker } from '@/components/ui/EmojiPicker';
 import { ColorPicker } from '@/components/ui/ColorPicker';
-import type { CategoryFormData, Category } from '@/lib/types/database';
+import type { FinanceCategoryFormData, FinanceCategoryType } from '@/lib/types/database';
 import { CATEGORY_COLORS } from '@/constants/colors';
+import { cn } from '@/lib/utils/cn';
 
-interface CategoryFormProps {
+interface FinanceCategoryFormProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: CategoryFormData) => Promise<Category | null | boolean>;
-  initial?: Partial<CategoryFormData>;
+  onSubmit: (data: FinanceCategoryFormData) => Promise<unknown>;
+  initial?: Partial<FinanceCategoryFormData>;
   mode?: 'create' | 'edit';
 }
 
-export function CategoryForm({
+const TYPE_OPTIONS: { value: FinanceCategoryType; label: string }[] = [
+  { value: 'expense', label: 'Egreso' },
+  { value: 'income', label: 'Ingreso' },
+  { value: 'both', label: 'Ambos' },
+];
+
+export function FinanceCategoryForm({
   open,
   onClose,
   onSubmit,
   initial,
   mode = 'create',
-}: CategoryFormProps) {
+}: FinanceCategoryFormProps) {
   const [name, setName] = useState(initial?.name ?? '');
-  const [emoji, setEmoji] = useState(initial?.emoji ?? '🎯');
+  const [emoji, setEmoji] = useState(initial?.emoji ?? '💰');
   const [color, setColor] = useState(initial?.color ?? CATEGORY_COLORS[0].hex);
+  const [type, setType] = useState<FinanceCategoryType>(initial?.type ?? 'expense');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (open && initial) {
       setName(initial.name ?? '');
-      setEmoji(initial.emoji ?? '🎯');
+      setEmoji(initial.emoji ?? '💰');
       setColor(initial.color ?? CATEGORY_COLORS[0].hex);
+      setType(initial.type ?? 'expense');
     }
   }, [open, initial]);
 
@@ -44,14 +53,15 @@ export function CategoryForm({
     }
     setLoading(true);
     setError('');
-    const result = await onSubmit({ name: name.trim(), emoji, color });
+    const result = await onSubmit({ name: name.trim(), emoji, color, type });
     setLoading(false);
     if (result) {
       onClose();
       if (mode === 'create') {
         setName('');
-        setEmoji('🎯');
+        setEmoji('💰');
         setColor(CATEGORY_COLORS[0].hex);
+        setType('expense');
       }
     } else {
       setError('Error al guardar. Intenta de nuevo.');
@@ -62,7 +72,7 @@ export function CategoryForm({
     <Modal
       open={open}
       onClose={onClose}
-      title={mode === 'create' ? 'Nueva área de vida' : 'Editar área'}
+      title={mode === 'create' ? 'Nueva categoría financiera' : 'Editar categoría'}
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="flex items-center gap-3">
@@ -72,10 +82,32 @@ export function CategoryForm({
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="ej: Trabajo, Salud, Startup..."
-              className="w-full px-4 py-2.5 rounded-xl glass-button text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 bg-transparent"
+              placeholder="ej: Comida, Transporte, Salario..."
+              className="w-full px-4 py-2.5 rounded-xl glass-button text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40 bg-transparent"
               autoFocus
             />
+          </div>
+        </div>
+
+        {/* Type selector */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Tipo</p>
+          <div className="flex gap-1 glass-card rounded-2xl p-1">
+            {TYPE_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setType(opt.value)}
+                className={cn(
+                  'flex-1 px-3 py-1.5 rounded-xl text-xs font-medium transition-all',
+                  type === opt.value
+                    ? 'bg-emerald-500 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -94,8 +126,10 @@ export function CategoryForm({
         >
           <span className="text-2xl">{emoji || '📁'}</span>
           <div>
-            <p className="font-semibold text-sm">{name || 'Nombre del área'}</p>
-            <p className="text-xs text-muted-foreground">0 objetivos</p>
+            <p className="font-semibold text-sm">{name || 'Nombre de categoría'}</p>
+            <p className="text-xs text-muted-foreground">
+              {type === 'income' ? 'Ingreso' : type === 'expense' ? 'Egreso' : 'Ingreso y Egreso'}
+            </p>
           </div>
         </div>
 
@@ -115,7 +149,7 @@ export function CategoryForm({
             className="px-5 py-2 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-50 hover:opacity-90"
             style={{ backgroundColor: color }}
           >
-            {loading ? 'Guardando...' : mode === 'create' ? 'Crear área' : 'Guardar'}
+            {loading ? 'Guardando...' : mode === 'create' ? 'Crear categoría' : 'Guardar'}
           </button>
         </div>
       </form>

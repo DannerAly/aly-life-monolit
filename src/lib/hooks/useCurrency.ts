@@ -2,48 +2,52 @@
 
 import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import type { GridItem } from '@/lib/types/database';
+import { formatCurrency } from '@/lib/utils/finance';
 
-export function useGridLayout() {
-  const [gridLayout, setGridLayout] = useState<GridItem[]>([]);
+export function useCurrency() {
+  const [currency, setCurrencyState] = useState('BOB');
   const [loading, setLoading] = useState(false);
 
-  const fetchLayout = useCallback(async () => {
+  const fetchCurrency = useCallback(async () => {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('user_preferences')
-        .select('grid_layout')
+        .select('currency')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (error) { setLoading(false); return; }
-      setGridLayout((data?.grid_layout as GridItem[]) ?? []);
+      if (data?.currency) setCurrencyState(data.currency);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const saveLayout = useCallback(async (items: GridItem[]) => {
+  const setCurrency = useCallback(async (code: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    setGridLayout(items);
+    setCurrencyState(code);
 
     await supabase
       .from('user_preferences')
       .upsert(
         {
           user_id: user.id,
-          grid_layout: items,
+          currency: code,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id' }
       );
   }, []);
 
-  return { gridLayout, loading, fetchLayout, saveLayout };
+  const formatAmount = useCallback(
+    (amount: number) => formatCurrency(amount, currency),
+    [currency]
+  );
+
+  return { currency, loading, fetchCurrency, setCurrency, formatAmount };
 }

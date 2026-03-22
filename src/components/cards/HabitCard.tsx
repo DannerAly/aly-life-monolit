@@ -11,6 +11,8 @@ interface HabitCardProps {
   onDecrement: () => void;
   onClick: () => void;
   className?: string;
+  dataOnboarding?: string;
+  compact?: boolean;
 }
 
 export function HabitCard({
@@ -18,18 +20,58 @@ export function HabitCard({
   onIncrement,
   onDecrement,
   onClick,
+  dataOnboarding,
   className,
+  compact,
 }: HabitCardProps) {
   const { emoji, name, todayValue, daily_goal, progress, goalMet, icon_color, unit_label } = habit;
   const showGrid = daily_goal <= 12;
   const gridCols = Math.min(4, daily_goal);
 
+  if (compact) {
+    return (
+      <motion.div
+        data-onboarding={dataOnboarding}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        onClick={onClick}
+        className={cn(
+          'glass-card p-3 flex items-center gap-2 overflow-hidden relative cursor-pointer h-full',
+          goalMet && 'ring-1',
+          className
+        )}
+        style={goalMet ? { '--tw-ring-color': `${icon_color}40` } as React.CSSProperties : undefined}
+      >
+        <span className="text-xl flex-shrink-0">{emoji}</span>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-xs font-semibold truncate">{name}</h3>
+        </div>
+        <span
+          className="text-xs font-bold tabular-nums flex-shrink-0"
+          style={{ color: goalMet ? icon_color : undefined }}
+        >
+          {todayValue}/{daily_goal}
+        </span>
+        <motion.button
+          whileTap={{ scale: 0.85 }}
+          onClick={(e) => { e.stopPropagation(); onIncrement(); }}
+          className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-white"
+          style={{ backgroundColor: `${icon_color}cc` }}
+        >
+          <Plus size={12} />
+        </motion.button>
+        {goalMet && <span className="text-xs absolute top-1 right-1">🎉</span>}
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
+      data-onboarding={dataOnboarding}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
-        'glass-card p-4 flex flex-col justify-between overflow-hidden relative cursor-pointer',
+        'glass-card p-4 flex flex-col justify-between overflow-hidden relative cursor-pointer h-full',
         goalMet && 'ring-1',
         className
       )}

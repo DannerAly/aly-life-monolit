@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -23,7 +23,7 @@ import { CategoryCard } from '@/components/cards/CategoryCard';
 import { HabitCard } from '@/components/cards/HabitCard';
 import { QuickAddCard } from '@/components/cards/QuickAddCard';
 import { SortableGridItem } from '@/components/layout/SortableGridItem';
-import type { CategoryWithTasks, HabitWithLog, GridItem } from '@/lib/types/database';
+import type { CategoryWithTasks, HabitWithLog, GridItem, GridItemSize } from '@/lib/types/database';
 import { getOverallStats } from '@/lib/utils/progress';
 
 interface BentoGridProps {
@@ -36,14 +36,19 @@ interface BentoGridProps {
   onDecrementHabit: (id: string) => void;
   onHabitClick: (id: string) => void;
   onReorder: (layout: GridItem[]) => void;
+  onEditCategory?: (id: string) => void;
+  onDeleteCategory?: (id: string) => void;
+  onEditHabit?: (id: string) => void;
+  onDeleteHabit?: (id: string) => void;
+  onHeroClick?: () => void;
 }
 
 function BentoSkeleton() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 auto-rows-[180px] gap-4">
-      <div className="glass-card col-span-1 sm:col-span-2 row-span-2 bg-white/30 dark:bg-white/5 animate-pulse" />
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 auto-rows-[100px] gap-3">
+      <div className="glass-card col-span-2 sm:col-span-4 row-span-4 bg-white/30 dark:bg-white/5 animate-pulse" />
       {[...Array(5)].map((_, i) => (
-        <div key={i} className="glass-card bg-white/30 dark:bg-white/5 animate-pulse" />
+        <div key={i} className="glass-card col-span-2 row-span-2 bg-white/30 dark:bg-white/5 animate-pulse" />
       ))}
     </div>
   );
@@ -58,6 +63,16 @@ function fromGridItemId(compositeId: string): GridItem {
   return { type: type as 'category' | 'habit', id };
 }
 
+// Grid: 2col mobile, 4col tablet, 8col desktop. Each cell = ~100px.
+// A standard card (1x1) = 2col x 2row = ~200x200. Mini = 1col x 1row = ~100x100.
+const SIZE_CLASSES: Record<GridItemSize, string> = {
+  'mini': 'col-span-1 row-span-1',
+  '1x1': 'col-span-2 row-span-2',
+  '2x1': 'col-span-2 sm:col-span-4 row-span-2',
+  '1x2': 'col-span-2 row-span-4',
+  '2x2': 'col-span-2 sm:col-span-4 row-span-4',
+};
+
 export function BentoGrid({
   categories,
   habits,
@@ -68,6 +83,11 @@ export function BentoGrid({
   onDecrementHabit,
   onHabitClick,
   onReorder,
+  onEditCategory,
+  onDeleteCategory,
+  onEditHabit,
+  onDeleteHabit,
+  onHeroClick,
 }: BentoGridProps) {
   const allTasks = categories.flatMap(c => c.tasks);
   const stats = getOverallStats(allTasks);
@@ -88,9 +108,7 @@ export function BentoGrid({
     let items: GridItem[];
 
     if (gridLayout.length > 0) {
-      // Use saved layout, filter out deleted items
       items = gridLayout.filter(item => existingIds.has(toGridItemId(item)));
-      // Add new items not in layout
       const layoutIds = new Set(items.map(toGridItemId));
       const newHabits = habits
         .filter(h => !layoutIds.has(toGridItemId({ type: 'habit', id: h.id })))
@@ -100,7 +118,6 @@ export function BentoGrid({
         .map(c => ({ type: 'category' as const, id: c.id }));
       items = [...items, ...newHabits, ...newCats];
     } else {
-      // Default order: habits by sort_order, then categories by sort_order
       items = [
         ...habits.map(h => ({ type: 'habit' as const, id: h.id })),
         ...categories.map(c => ({ type: 'category' as const, id: c.id })),
@@ -109,6 +126,15 @@ export function BentoGrid({
 
     return items;
   }, [categories, habits, gridLayout]);
+
+  // Size map from layout
+  const sizeMap = useMemo(() => {
+    const map = new Map<string, GridItemSize>();
+    for (const item of gridLayout) {
+      if (item.size) map.set(toGridItemId(item), item.size);
+    }
+    return map;
+  }, [gridLayout]);
 
   const sortableIds = orderedItems.map(toGridItemId);
 
@@ -129,10 +155,29 @@ export function BentoGrid({
     onReorder(newItems);
   };
 
+  const handleResize = useCallback((itemType: 'category' | 'habit', itemId: string, newSize: GridItemSize) => {
+    const updated = orderedItems.map(item => {
+      if (item.type === itemType && item.id === itemId) {
+        return { ...item, size: newSize };
+      }
+      return item;
+    });
+    onReorder(updated);
+  }, [orderedItems, onReorder]);
+
   const catMap = new Map(categories.map(c => [c.id, c]));
   const habitMap = new Map(habits.map(h => [h.id, h]));
 
-  const renderItem = (item: GridItem) => {
+  const firstHabitId = orderedItems.find(i => i.type === 'habit')?.id;
+  const firstCategoryId = orderedItems.find(i => i.type === 'category')?.id;
+
+  const getItemSize = (item: GridItem): GridItemSize => {
+    const compositeId = toGridItemId(item);
+    return sizeMap.get(compositeId) ?? item.size ?? '1x1';
+  };
+
+  const renderItem = (item: GridItem, itemSize?: GridItemSize) => {
+    const compact = itemSize === 'mini';
     if (item.type === 'habit') {
       const habit = habitMap.get(item.id);
       if (!habit) return null;
@@ -142,6 +187,8 @@ export function BentoGrid({
           onIncrement={() => onIncrementHabit(habit.id)}
           onDecrement={() => onDecrementHabit(habit.id)}
           onClick={() => onHabitClick(habit.id)}
+          dataOnboarding={item.id === firstHabitId ? 'habit-card' : undefined}
+          compact={compact}
         />
       );
     }
@@ -152,17 +199,17 @@ export function BentoGrid({
         category={cat}
         index={0}
         size="md"
-        className="col-span-1 row-span-1"
+        dataOnboarding={item.id === firstCategoryId ? 'category-card' : undefined}
+        compact={compact}
       />
     );
   };
 
-  // Find active item for drag overlay
   const activeItem = activeId ? fromGridItemId(activeId) : null;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 auto-rows-[200px] gap-4">
-      {/* Hero Card - always first, NOT draggable */}
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 auto-rows-[100px] gap-3">
+      {/* Hero Card - always first, NOT draggable, 4col x 4row */}
       <HeroStatsCard
         totalTasks={stats.total}
         completedTasks={stats.completed}
@@ -170,7 +217,8 @@ export function BentoGrid({
         failedTasks={stats.failed}
         overallProgress={stats.avgProgress}
         categoryCount={categories.length}
-        className="col-span-1 sm:col-span-2 lg:col-span-2 row-span-1 sm:row-span-2"
+        onClick={onHeroClick}
+        className="col-span-2 sm:col-span-4 row-span-4"
       />
 
       {/* Sortable items */}
@@ -183,13 +231,24 @@ export function BentoGrid({
         <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
           {orderedItems.map(item => {
             const compositeId = toGridItemId(item);
+            const itemSize = sizeMap.get(compositeId) ?? item.size ?? '1x1';
             return (
               <SortableGridItem
                 key={compositeId}
                 id={compositeId}
-                className="col-span-1 row-span-1"
+                className={SIZE_CLASSES[itemSize]}
+                onEdit={() => {
+                  if (item.type === 'category') onEditCategory?.(item.id);
+                  else onEditHabit?.(item.id);
+                }}
+                onDelete={() => {
+                  if (item.type === 'category') onDeleteCategory?.(item.id);
+                  else onDeleteHabit?.(item.id);
+                }}
+                currentSize={itemSize}
+                onResize={(newSize) => handleResize(item.type, item.id, newSize)}
               >
-                {renderItem(item)}
+                {renderItem(item, itemSize)}
               </SortableGridItem>
             );
           })}
@@ -198,15 +257,15 @@ export function BentoGrid({
         <DragOverlay>
           {activeItem ? (
             <div className="opacity-80 pointer-events-none">
-              {renderItem(activeItem)}
+              {renderItem(activeItem, getItemSize(activeItem))}
             </div>
           ) : null}
         </DragOverlay>
       </DndContext>
 
-      {/* Quick Add Cards - NOT draggable */}
-      <QuickAddCard onClick={onAddHabit} label="Nuevo hábito" sublabel="Meditación, Ejercicio..." />
-      <QuickAddCard onClick={onAddCategory} />
+      {/* Quick Add Cards - NOT draggable, standard 1x1 size (2col x 2row) */}
+      <QuickAddCard onClick={onAddHabit} label="Nuevo hábito" sublabel="Meditación, Ejercicio..." dataOnboarding="add-habit" className="col-span-2 row-span-2" />
+      <QuickAddCard onClick={onAddCategory} dataOnboarding="add-category" className="col-span-2 row-span-2" />
     </div>
   );
 }
