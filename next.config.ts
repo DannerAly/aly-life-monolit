@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "lh3.googleusercontent.com", // Google profile pictures
+        hostname: "lh3.googleusercontent.com",
         pathname: "/**",
       },
       {
@@ -14,6 +14,10 @@ const nextConfig: NextConfig = {
         pathname: "/**",
       },
     ],
+  },
+  devIndicators: false,
+  experimental: {
+    webpackMemoryOptimizations: true,
   },
 };
 

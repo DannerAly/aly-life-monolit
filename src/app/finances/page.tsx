@@ -1,17 +1,20 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Upload, FolderPlus, Settings } from 'lucide-react';
+import { Plus, Upload, FolderPlus, Settings, SlidersHorizontal } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { PeriodSelector } from '@/components/finances/PeriodSelector';
 import { FinanceSummaryCard } from '@/components/finances/FinanceSummaryCard';
+import type { BudgetAlert } from '@/components/finances/FinanceSummaryCard';
 import { DonutChart } from '@/components/finances/DonutChart';
 import { BarChart } from '@/components/finances/BarChart';
+import { CategoryBudgetProgress } from '@/components/finances/CategoryBudgetProgress';
 import { TransactionFilters } from '@/components/finances/TransactionFilters';
 import { TransactionList } from '@/components/finances/TransactionList';
 import { TransactionForm } from '@/components/finances/TransactionForm';
 import { FinanceCategoryForm } from '@/components/finances/FinanceCategoryForm';
+import { FinanceSettingsModal } from '@/components/finances/FinanceSettingsModal';
 import { ImportModal } from '@/components/finances/ImportModal';
 import { ClassificationRulesModal } from '@/components/finances/ClassificationRulesModal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -23,7 +26,7 @@ import { useCurrency } from '@/lib/hooks/useCurrency';
 import { useImportParser } from '@/lib/hooks/useImportParser';
 import { hashTransaction } from '@/lib/utils/hashTransaction';
 import type { TransactionFormData, TransactionWithCategory, FinanceCategoryFormData, FinanceCategory, PeriodView } from '@/lib/types/database';
-import { currentPeriodStr, getPeriodSummaryLabel } from '@/lib/utils/finance';
+import { currentPeriodStr, getPeriodSummaryLabel, todayStr, daysAgoStr } from '@/lib/utils/finance';
 
 const CURRENCIES = [
   { code: 'BOB', label: 'Bs (Bolivianos)' },
@@ -37,6 +40,17 @@ const CURRENCIES = [
 ];
 
 export default function FinancesPage() {
+  const {
+    currency,
+    fetchCurrency,
+    setCurrency,
+    formatAmount,
+    financeCycleDay,
+    setFinanceCycleDay,
+    monthlyBudget,
+    setMonthlyBudget,
+  } = useCurrency();
+
   const {
     categories,
     fetchCategories,
@@ -62,10 +76,11 @@ export default function FinancesPage() {
     periodTotals,
     fetchPeriodTotals,
     fetchExistingHashes,
-  } = useTransactions();
+    customRange,
+    setCustomRange,
+  } = useTransactions(financeCycleDay);
 
   const { rules, fetchRules, createRule, deleteRule } = useClassificationRules();
-  const { currency, fetchCurrency, setCurrency, formatAmount } = useCurrency();
   const {
     filteredTransactions,
     searchQuery, setSearchQuery,
@@ -81,28 +96,47 @@ export default function FinancesPage() {
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showRules, setShowRules] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<TransactionWithCategory | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState<FinanceCategory | null>(null);
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
 
+  // Budget alerts
+  const budgetAlerts: BudgetAlert[] = useMemo(() => {
+    const alerts: BudgetAlert[] = [];
+    for (const cat of expenseBreakdown) {
+      if (cat.spending_limit && cat.spending_limit > 0) {
+        const pct = Math.round((cat.total / cat.spending_limit) * 100);
+        if (pct >= 80) {
+          alerts.push({ name: cat.category_name, emoji: cat.category_emoji, percentage: pct });
+        }
+      }
+    }
+    // Global budget alert
+    if (monthlyBudget && monthlyBudget > 0) {
+      const pct = Math.round((summary.totalExpense / monthlyBudget) * 100);
+      if (pct >= 80) {
+        alerts.unshift({ name: 'Presupuesto total', emoji: '💰', percentage: pct });
+      }
+    }
+    return alerts;
+  }, [expenseBreakdown, monthlyBudget, summary.totalExpense]);
+
   // Initial fetch
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchCategories();
-    fetchTransactions();
-    fetchPeriodTotals();
     fetchRules();
     fetchCurrency();
   }, []);
 
-  // Re-fetch when period changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Fetch transactions + chart whenever period/view/range changes
   useEffect(() => {
-    fetchTransactions(currentPeriod);
+    fetchTransactions();
     fetchPeriodTotals();
-  }, [currentPeriod, periodView]);
+  }, [currentPeriod, periodView, customRange, fetchTransactions, fetchPeriodTotals]);
 
   const handlePeriodChange = useCallback((period: string) => {
     setCurrentPeriod(period);
@@ -110,8 +144,13 @@ export default function FinancesPage() {
 
   const handleViewChange = useCallback((view: PeriodView) => {
     setPeriodView(view);
-    setCurrentPeriod(currentPeriodStr(view));
-  }, [setPeriodView, setCurrentPeriod]);
+    if (view === 'custom') {
+      setCustomRange({ from: daysAgoStr(30), to: todayStr() });
+    } else {
+      setCustomRange(null);
+      setCurrentPeriod(currentPeriodStr(view, financeCycleDay));
+    }
+  }, [setPeriodView, setCurrentPeriod, setCustomRange, financeCycleDay]);
 
   const handleEditTransaction = async (data: TransactionFormData) => {
     if (!editingTransaction) return false;
@@ -180,6 +219,8 @@ export default function FinancesPage() {
             view={periodView}
             onPeriodChange={handlePeriodChange}
             onViewChange={handleViewChange}
+            customRange={customRange}
+            onCustomRangeChange={setCustomRange}
           />
           <div className="flex gap-2 flex-wrap">
             <button
@@ -208,6 +249,13 @@ export default function FinancesPage() {
             >
               <Settings size={14} />
               Reglas
+            </button>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="glass-button rounded-xl px-3 py-2 text-xs font-medium hover:scale-105 transition-transform flex items-center gap-1.5"
+            >
+              <SlidersHorizontal size={14} />
+              Ajustes
             </button>
           </div>
         </div>
@@ -264,6 +312,7 @@ export default function FinancesPage() {
             formatAmount={formatAmount}
             periodLabel={getPeriodSummaryLabel(periodView)}
             className="lg:col-span-2"
+            budgetAlerts={budgetAlerts}
           />
           <div className="glass-card p-6">
             <h3 className="text-sm font-semibold mb-4">Gastos por categoría</h3>
@@ -273,6 +322,14 @@ export default function FinancesPage() {
             />
           </div>
         </div>
+
+        {/* Budget progress bars */}
+        <CategoryBudgetProgress
+          breakdown={expenseBreakdown}
+          formatAmount={formatAmount}
+          monthlyBudget={monthlyBudget}
+          totalExpense={summary.totalExpense}
+        />
 
         {/* Bar chart */}
         {periodTotals.length > 0 && (
@@ -368,6 +425,15 @@ export default function FinancesPage() {
         formatAmount={formatAmount}
       />
 
+      <FinanceSettingsModal
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        cycleDay={financeCycleDay}
+        onCycleDayChange={setFinanceCycleDay}
+        monthlyBudget={monthlyBudget}
+        onMonthlyBudgetChange={setMonthlyBudget}
+      />
+
       <ClassificationRulesModal
         open={showRules}
         onClose={() => setShowRules(false)}
@@ -388,6 +454,7 @@ export default function FinancesPage() {
             emoji: editingCategory.emoji ?? undefined,
             color: editingCategory.color,
             type: editingCategory.type,
+            spending_limit: editingCategory.spending_limit,
           }}
         />
       )}

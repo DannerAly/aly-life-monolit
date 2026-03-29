@@ -135,6 +135,7 @@ export interface FinanceCategory {
   emoji: string | null;
   color: string;
   type: FinanceCategoryType;
+  spending_limit: number | null;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -175,6 +176,7 @@ export interface FinanceCategoryFormData {
   emoji?: string;
   color: string;
   type: FinanceCategoryType;
+  spending_limit?: number | null;
 }
 
 export interface TransactionFormData {
@@ -206,10 +208,11 @@ export interface CategoryBreakdown {
   total: number;
   percentage: number;
   count: number;
+  spending_limit: number | null;
 }
 
 // ── Period Views ──
-export type PeriodView = 'week' | 'month' | 'year';
+export type PeriodView = 'week' | 'month' | 'year' | 'custom';
 
 export interface PeriodSummary {
   period: string;

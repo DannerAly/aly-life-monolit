@@ -138,40 +138,108 @@ export function nextYear(yearStr: string): string {
   return `${parseInt(yearStr, 10) + 1}`;
 }
 
-// ── Unified period functions ──
+// ── Cycle utilities ──
 
-export function currentPeriodStr(view: PeriodView): string {
-  if (view === 'week') return currentWeekStr();
-  if (view === 'year') return currentYearStr();
-  return currentMonthStr();
+export function getCycleMonthRange(monthStr: string, cycleDay: number): { firstDay: string; lastDay: string } {
+  if (cycleDay === 1) return getMonthRange(monthStr);
+
+  const [year, month] = monthStr.split('-').map(Number);
+  const firstDay = `${year}-${String(month).padStart(2, '0')}-${String(cycleDay).padStart(2, '0')}`;
+
+  // End day is cycleDay-1 of the next month
+  let endYear = year;
+  let endMonth = month + 1;
+  if (endMonth > 12) { endMonth = 1; endYear++; }
+  const lastDay = `${endYear}-${String(endMonth).padStart(2, '0')}-${String(cycleDay - 1).padStart(2, '0')}`;
+
+  return { firstDay, lastDay };
 }
 
-export function getPeriodRange(period: string, view: PeriodView): { firstDay: string; lastDay: string } {
+export function currentCycleMonthStr(cycleDay: number): string {
+  if (cycleDay === 1) return currentMonthStr();
+
+  const now = new Date();
+  const day = now.getDate();
+  // If today is before the cycle day, we're still in the previous cycle
+  if (day < cycleDay) {
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+  }
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+export function dateToCyclePeriod(dateStr: string, cycleDay: number): string {
+  if (cycleDay === 1) return dateStr.slice(0, 7);
+
+  const [year, month, day] = dateStr.split('-').map(Number);
+  if (day < cycleDay) {
+    // Belongs to previous month's cycle
+    let prevMonth = month - 1;
+    let prevYear = year;
+    if (prevMonth < 1) { prevMonth = 12; prevYear--; }
+    return `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+  }
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+// ── Unified period functions ──
+
+export function currentPeriodStr(view: PeriodView, cycleDay = 1): string {
+  if (view === 'week') return currentWeekStr();
+  if (view === 'year') return currentYearStr();
+  return currentCycleMonthStr(cycleDay);
+}
+
+export function getPeriodRange(period: string, view: PeriodView, cycleDay = 1): { firstDay: string; lastDay: string } {
   if (view === 'week') return getWeekRange(period);
   if (view === 'year') return getYearRange(period);
-  return getMonthRange(period);
+  return getCycleMonthRange(period, cycleDay);
 }
 
 export function getPeriodLabel(period: string, view: PeriodView): string {
   if (view === 'week') return getWeekLabel(period);
   if (view === 'year') return period;
+  if (view === 'custom') return 'Rango personalizado';
   return getMonthName(period);
 }
 
 export function prevPeriod(period: string, view: PeriodView): string {
   if (view === 'week') return prevWeek(period);
   if (view === 'year') return prevYear(period);
+  if (view === 'custom') return period;
   return prevMonth(period);
 }
 
 export function nextPeriod(period: string, view: PeriodView): string {
   if (view === 'week') return nextWeek(period);
   if (view === 'year') return nextYear(period);
+  if (view === 'custom') return period;
   return nextMonth(period);
 }
 
 export function getPeriodSummaryLabel(view: PeriodView): string {
   if (view === 'week') return 'de la semana';
   if (view === 'year') return 'del año';
+  if (view === 'custom') return 'del rango';
   return 'del mes';
+}
+
+// ── Custom range utilities ──
+
+export function formatCustomRangeLabel(from: string, to: string): string {
+  const fmtDate = (d: string) => {
+    const [y, m, day] = d.split('-').map(Number);
+    return `${day} ${MONTH_ABBR[m - 1]} ${y}`;
+  };
+  return `${fmtDate(from)} — ${fmtDate(to)}`;
+}
+
+export function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function daysAgoStr(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
 }

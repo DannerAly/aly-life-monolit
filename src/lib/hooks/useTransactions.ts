@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import type {
   Transaction,
@@ -21,6 +21,8 @@ import {
   prevMonth,
   prevWeek,
   currentWeekStr,
+  getCycleMonthRange,
+  dateToCyclePeriod,
 } from '@/lib/utils/finance';
 
 // Helper to get ISO week string from a date
@@ -34,23 +36,49 @@ function dateToWeekStr(d: Date): string {
   return `${yearForWeek}-W${String(weekNum).padStart(2, '0')}`;
 }
 
-export function useTransactions() {
+export function useTransactions(cycleDay = 1) {
   const [transactions, setTransactions] = useState<TransactionWithCategory[]>([]);
   const [categoriesMap, setCategoriesMap] = useState<Map<string, FinanceCategory>>(new Map());
   const [periodTotals, setPeriodTotals] = useState<PeriodSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [periodView, setPeriodView] = useState<PeriodView>('month');
-  const [currentPeriod, setCurrentPeriod] = useState(() => currentPeriodStr('month'));
+  const [currentPeriod, setCurrentPeriod] = useState(() => currentPeriodStr('month', cycleDay));
+  const [customRange, setCustomRange] = useState<{ from: string; to: string } | null>(null);
+
+  // Refs to avoid stale closures in useEffect
+  const periodViewRef = useRef(periodView);
+  periodViewRef.current = periodView;
+  const currentPeriodRef = useRef(currentPeriod);
+  currentPeriodRef.current = currentPeriod;
+  const cycleDayRef = useRef(cycleDay);
+  cycleDayRef.current = cycleDay;
+  const customRangeRef = useRef(customRange);
+  customRangeRef.current = customRange;
 
   // Aliases for backward compat
   const currentMonth = currentPeriod;
   const setCurrentMonth = setCurrentPeriod;
 
+  const getEffectiveRange = useCallback((): { firstDay: string; lastDay: string } => {
+    if (periodViewRef.current === 'custom' && customRangeRef.current) {
+      return { firstDay: customRangeRef.current.from, lastDay: customRangeRef.current.to };
+    }
+    return getPeriodRange(currentPeriodRef.current, periodViewRef.current, cycleDayRef.current);
+  }, []);
+
   const fetchTransactions = useCallback(async (period?: string) => {
     setLoading(true);
     try {
-      const p = period ?? currentPeriod;
-      const { firstDay, lastDay } = getPeriodRange(p, periodView);
+      let firstDay: string, lastDay: string;
+      if (periodViewRef.current === 'custom' && customRangeRef.current) {
+        firstDay = customRangeRef.current.from;
+        lastDay = customRangeRef.current.to;
+      } else {
+        const p = period ?? currentPeriodRef.current;
+        const range = getPeriodRange(p, periodViewRef.current, cycleDayRef.current);
+        firstDay = range.firstDay;
+        lastDay = range.lastDay;
+      }
 
       const [txnRes, catRes] = await Promise.all([
         supabase
@@ -86,7 +114,7 @@ export function useTransactions() {
     } finally {
       setLoading(false);
     }
-  }, [currentPeriod, periodView]);
+  }, []);
 
   const summary: MonthlySummary = useMemo(() => {
     const totalIncome = transactions
@@ -131,6 +159,7 @@ export function useTransactions() {
         total: g.total,
         percentage: Math.round((g.total / totalExpense) * 100),
         count: g.count,
+        spending_limit: g.cat?.spending_limit ?? null,
       }))
       .sort((a, b) => b.total - a.total);
   }, [transactions, categoriesMap]);
@@ -154,12 +183,12 @@ export function useTransactions() {
         .single();
 
       if (error) throw error;
-      await fetchTransactions(currentPeriod);
+      await fetchTransactions();
       return created as Transaction;
     } catch {
       return null;
     }
-  }, [fetchTransactions, currentPeriod]);
+  }, [fetchTransactions]);
 
   const updateTransaction = useCallback(async (id: string, data: Partial<TransactionFormData>): Promise<boolean> => {
     try {
@@ -168,12 +197,12 @@ export function useTransactions() {
         .update({ ...data, updated_at: new Date().toISOString() })
         .eq('id', id);
       if (error) throw error;
-      await fetchTransactions(currentPeriod);
+      await fetchTransactions();
       return true;
     } catch {
       return false;
     }
-  }, [fetchTransactions, currentPeriod]);
+  }, [fetchTransactions]);
 
   const deleteTransaction = useCallback(async (id: string): Promise<boolean> => {
     try {
@@ -210,19 +239,58 @@ export function useTransactions() {
         .select();
 
       if (error) throw error;
-      await fetchTransactions(currentPeriod);
+      await fetchTransactions();
       return data?.length ?? 0;
     } catch {
       return 0;
     }
-  }, [fetchTransactions, currentPeriod]);
+  }, [fetchTransactions]);
 
   const fetchPeriodTotals = useCallback(async () => {
     try {
-      if (periodView === 'week') {
-        // Last 4 weeks
+      const pv = periodViewRef.current;
+      const cp = currentPeriodRef.current;
+      const cd = cycleDayRef.current;
+      const cr = customRangeRef.current;
+
+      if (pv === 'custom' && cr) {
+        // Custom range: group by month
+        const { data, error } = await supabase
+          .from('transactions')
+          .select('type, amount, date')
+          .gte('date', cr.from)
+          .lte('date', cr.to);
+        if (error) throw error;
+
+        const byMonth = new Map<string, { income: number; expense: number }>();
+        for (const row of data ?? []) {
+          const mo = (row.date as string).slice(0, 7);
+          const entry = byMonth.get(mo);
+          if (entry) {
+            if (row.type === 'income') entry.income += row.amount as number;
+            else entry.expense += row.amount as number;
+          } else {
+            byMonth.set(mo, {
+              income: row.type === 'income' ? (row.amount as number) : 0,
+              expense: row.type === 'expense' ? (row.amount as number) : 0,
+            });
+          }
+        }
+
+        const sorted = Array.from(byMonth.entries()).sort(([a], [b]) => a.localeCompare(b));
+        setPeriodTotals(sorted.map(([mo, e]) => ({
+          period: mo,
+          label: getMonthLabel(mo),
+          totalIncome: e.income,
+          totalExpense: e.expense,
+          balance: e.income - e.expense,
+        })));
+        return;
+      }
+
+      if (pv === 'week') {
         const weeks: string[] = [];
-        let w = currentPeriod.includes('-W') ? currentPeriod : currentWeekStr();
+        let w = cp.includes('-W') ? cp : currentWeekStr();
         for (let i = 0; i < 4; i++) {
           weeks.unshift(w);
           w = prevWeek(w);
@@ -255,9 +323,8 @@ export function useTransactions() {
           return { period: wk, label: getWeekShortLabel(wk), totalIncome: e.income, totalExpense: e.expense, balance: e.income - e.expense };
         }));
 
-      } else if (periodView === 'year') {
-        // 12 months of the selected year
-        const year = currentPeriod.includes('-') ? currentPeriod.split('-')[0] : currentPeriod;
+      } else if (pv === 'year') {
+        const year = cp.includes('-') ? cp.split('-')[0] : cp;
         const months: string[] = [];
         for (let m = 1; m <= 12; m++) {
           months.push(`${year}-${String(m).padStart(2, '0')}`);
@@ -291,16 +358,16 @@ export function useTransactions() {
         }));
 
       } else {
-        // Last 6 months (default)
+        // Month view: last 6 months
         const months: string[] = [];
-        let m = currentPeriod;
+        let m = cp;
         for (let i = 0; i < 6; i++) {
           months.unshift(m);
           m = prevMonth(m);
         }
 
-        const { firstDay } = getMonthRange(months[0]);
-        const { lastDay } = getMonthRange(months[months.length - 1]);
+        const { firstDay } = getCycleMonthRange(months[0], cd);
+        const { lastDay } = getCycleMonthRange(months[months.length - 1], cd);
 
         const { data, error } = await supabase
           .from('transactions')
@@ -313,7 +380,7 @@ export function useTransactions() {
         for (const mo of months) byMonth.set(mo, { income: 0, expense: 0 });
 
         for (const row of data ?? []) {
-          const mo = (row.date as string).slice(0, 7);
+          const mo = dateToCyclePeriod(row.date as string, cd);
           const entry = byMonth.get(mo);
           if (entry) {
             if (row.type === 'income') entry.income += row.amount as number;
@@ -326,10 +393,10 @@ export function useTransactions() {
           return { period: mo, label: getMonthLabel(mo), totalIncome: e.income, totalExpense: e.expense, balance: e.income - e.expense };
         }));
       }
-    } catch {
-      // silent
+    } catch (err) {
+      console.error('[fetchPeriodTotals]', err);
     }
-  }, [currentPeriod, periodView]);
+  }, []);
 
   const fetchExistingHashes = useCallback(async (): Promise<Set<string>> => {
     const { data } = await supabase
@@ -350,6 +417,8 @@ export function useTransactions() {
     setCurrentPeriod,
     periodView,
     setPeriodView,
+    customRange,
+    setCustomRange,
     fetchTransactions,
     summary,
     expenseBreakdown,
@@ -359,6 +428,7 @@ export function useTransactions() {
     bulkCreateTransactions,
     periodTotals,
     fetchPeriodTotals,
+    getEffectiveRange,
     // Legacy alias
     monthlyTotals: periodTotals,
     fetchMonthlyTotals: fetchPeriodTotals,

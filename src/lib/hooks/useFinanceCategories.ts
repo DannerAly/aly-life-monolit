@@ -45,6 +45,7 @@ export function useFinanceCategories() {
           emoji: data.emoji || null,
           color: data.color,
           type: data.type,
+          spending_limit: data.spending_limit ?? null,
           sort_order: maxOrder + 1,
         })
         .select()

@@ -35,7 +35,7 @@ export function BarChart({ data, height = 160, formatAmount }: BarChartProps) {
               {/* Bars container */}
               <div className="w-full flex gap-1 items-end" style={{ height: height - 24 }}>
                 {/* Income bar */}
-                <div className="flex-1 relative">
+                <div className="flex-1 relative h-full">
                   <motion.div
                     className="absolute bottom-0 w-full rounded-t-md bg-emerald-500"
                     initial={{ height: 0 }}
@@ -44,7 +44,7 @@ export function BarChart({ data, height = 160, formatAmount }: BarChartProps) {
                   />
                 </div>
                 {/* Expense bar */}
-                <div className="flex-1 relative">
+                <div className="flex-1 relative h-full">
                   <motion.div
                     className="absolute bottom-0 w-full rounded-t-md bg-rose-500"
                     initial={{ height: 0 }}

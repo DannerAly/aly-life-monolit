@@ -1,18 +1,25 @@
 'use client';
 
 import { motion } from 'motion/react';
-import { TrendingUp, TrendingDown, Wallet } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, AlertTriangle } from 'lucide-react';
 import type { MonthlySummary } from '@/lib/types/database';
 import { cn } from '@/lib/utils/cn';
+
+export interface BudgetAlert {
+  name: string;
+  emoji: string | null;
+  percentage: number;
+}
 
 interface FinanceSummaryCardProps {
   summary: MonthlySummary;
   formatAmount: (amount: number) => string;
   periodLabel?: string;
   className?: string;
+  budgetAlerts?: BudgetAlert[];
 }
 
-export function FinanceSummaryCard({ summary, formatAmount, periodLabel = 'del mes', className }: FinanceSummaryCardProps) {
+export function FinanceSummaryCard({ summary, formatAmount, periodLabel = 'del mes', className, budgetAlerts = [] }: FinanceSummaryCardProps) {
   const { totalIncome, totalExpense, balance } = summary;
   const ratio = totalIncome > 0 ? Math.min((totalExpense / totalIncome) * 100, 100) : 0;
   const isPositive = balance >= 0;
@@ -99,6 +106,23 @@ export function FinanceSummaryCard({ summary, formatAmount, periodLabel = 'del m
           />
         </div>
       </div>
+
+      {budgetAlerts.length > 0 && (
+        <div className="mt-3 space-y-1">
+          {budgetAlerts.map(alert => (
+            <div
+              key={alert.name}
+              className="flex items-center gap-1.5 text-xs"
+              style={{ color: alert.percentage >= 100 ? '#ef4444' : '#f97316' }}
+            >
+              <AlertTriangle size={12} />
+              <span>
+                {alert.emoji} {alert.name} al {alert.percentage}% del límite
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </motion.div>
   );
 }

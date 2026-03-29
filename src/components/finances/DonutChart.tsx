@@ -42,6 +42,7 @@ export function DonutChart({ data, total, size = 180, strokeWidth = 28 }: DonutC
       total: othersTotal,
       percentage: totalAmount > 0 ? Math.round((othersTotal / totalAmount) * 100) : 0,
       count: othersCount,
+      spending_limit: null,
     });
   }
 

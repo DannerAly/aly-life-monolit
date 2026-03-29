@@ -33,6 +33,9 @@ export function FinanceCategoryForm({
   const [emoji, setEmoji] = useState(initial?.emoji ?? '💰');
   const [color, setColor] = useState(initial?.color ?? CATEGORY_COLORS[0].hex);
   const [type, setType] = useState<FinanceCategoryType>(initial?.type ?? 'expense');
+  const [spendingLimit, setSpendingLimit] = useState<string>(
+    initial?.spending_limit != null ? String(initial.spending_limit) : ''
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -42,6 +45,7 @@ export function FinanceCategoryForm({
       setEmoji(initial.emoji ?? '💰');
       setColor(initial.color ?? CATEGORY_COLORS[0].hex);
       setType(initial.type ?? 'expense');
+      setSpendingLimit(initial.spending_limit != null ? String(initial.spending_limit) : '');
     }
   }, [open, initial]);
 
@@ -53,7 +57,14 @@ export function FinanceCategoryForm({
     }
     setLoading(true);
     setError('');
-    const result = await onSubmit({ name: name.trim(), emoji, color, type });
+    const parsedLimit = spendingLimit.trim() ? parseFloat(spendingLimit) : null;
+    const result = await onSubmit({
+      name: name.trim(),
+      emoji,
+      color,
+      type,
+      spending_limit: parsedLimit && parsedLimit > 0 ? parsedLimit : null,
+    });
     setLoading(false);
     if (result) {
       onClose();
@@ -62,6 +73,7 @@ export function FinanceCategoryForm({
         setEmoji('💰');
         setColor(CATEGORY_COLORS[0].hex);
         setType('expense');
+        setSpendingLimit('');
       }
     } else {
       setError('Error al guardar. Intenta de nuevo.');
@@ -110,6 +122,24 @@ export function FinanceCategoryForm({
             ))}
           </div>
         </div>
+
+        {/* Spending limit - only for expense/both */}
+        {(type === 'expense' || type === 'both') && (
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+              Límite de gasto mensual
+            </p>
+            <input
+              type="number"
+              value={spendingLimit}
+              onChange={e => setSpendingLimit(e.target.value)}
+              placeholder="Sin límite"
+              min="0"
+              step="0.01"
+              className="w-full px-4 py-2.5 rounded-xl glass-button text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40 bg-transparent"
+            />
+          </div>
+        )}
 
         <div>
           <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Color</p>
