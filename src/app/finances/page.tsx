@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Upload, FolderPlus, Settings, SlidersHorizontal, MoreHorizontal } from 'lucide-react';
+import { Plus, Upload, FolderPlus, Settings, SlidersHorizontal, MoreHorizontal, Lock } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { PeriodSelector } from '@/components/finances/PeriodSelector';
 import { FinanceSummaryCard } from '@/components/finances/FinanceSummaryCard';
@@ -19,6 +19,8 @@ import { ImportModal } from '@/components/finances/ImportModal';
 import { ClassificationRulesModal } from '@/components/finances/ClassificationRulesModal';
 import { SavingsSection } from '@/components/finances/SavingsSection';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { UpgradeModal } from '@/components/ui/UpgradeModal';
+import { usePlan } from '@/lib/hooks/usePlan';
 import { useFinanceCategories } from '@/lib/hooks/useFinanceCategories';
 import { useSavings } from '@/lib/hooks/useSavings';
 import { useTransactions } from '@/lib/hooks/useTransactions';
@@ -42,6 +44,7 @@ const CURRENCIES = [
 ];
 
 export default function FinancesPage() {
+  const { isPro, limits, fetchPlan } = usePlan();
   const {
     currency,
     fetchCurrency,
@@ -105,6 +108,10 @@ export default function FinancesPage() {
   const [existingHashes, setExistingHashes] = useState<Set<string>>(new Set());
   const importParser = useImportParser(categories, rules, existingHashes);
 
+  // Upgrade modal
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState<string | undefined>();
+
   // Modals
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
@@ -142,6 +149,7 @@ export default function FinancesPage() {
   // Initial fetch
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
+    fetchPlan();
     fetchCategories();
     fetchRules();
     fetchCurrency();
@@ -179,6 +187,19 @@ export default function FinancesPage() {
     if (!deletingId) return;
     await deleteTransaction(deletingId);
     setDeletingId(null);
+  };
+
+  const triggerUpgrade = (feature: string) => {
+    setUpgradeFeature(feature);
+    setShowUpgrade(true);
+  };
+
+  const handleAddFinanceCategory = () => {
+    if (!isPro && categories.length >= limits.financeCategories) {
+      triggerUpgrade('financeCategories');
+      return;
+    }
+    setShowCategoryForm(true);
   };
 
   const handleOpenImport = async () => {
@@ -225,7 +246,7 @@ export default function FinancesPage() {
 
   return (
     <div className="min-h-screen mesh-bg">
-      <Header />
+      <Header isPro={isPro} />
 
       <main className="pt-24 pb-24 sm:pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         {/* Top bar: month selector + actions */}
@@ -249,24 +270,24 @@ export default function FinancesPage() {
 
             {/* Primary action — always visible */}
             <button
-              onClick={() => setShowCategoryForm(true)}
+              onClick={handleAddFinanceCategory}
               className="glass-button rounded-xl px-3 py-2 text-xs font-medium hover:scale-105 transition-transform hidden sm:flex items-center gap-1.5"
             >
               <FolderPlus size={14} />
               Categoría
             </button>
             <button
-              onClick={handleOpenImport}
+              onClick={isPro ? handleOpenImport : () => triggerUpgrade('csvImport')}
               className="glass-button rounded-xl px-3 py-2 text-xs font-medium hover:scale-105 transition-transform hidden sm:flex items-center gap-1.5"
             >
-              <Upload size={14} />
+              {isPro ? <Upload size={14} /> : <Lock size={14} className="text-amber-500" />}
               Importar
             </button>
             <button
-              onClick={() => setShowRules(true)}
+              onClick={isPro ? () => setShowRules(true) : () => triggerUpgrade('classificationRules')}
               className="glass-button rounded-xl px-3 py-2 text-xs font-medium hover:scale-105 transition-transform hidden sm:flex items-center gap-1.5"
             >
-              <Settings size={14} />
+              {isPro ? <Settings size={14} /> : <Lock size={14} className="text-amber-500" />}
               Reglas
             </button>
             <button
@@ -289,17 +310,17 @@ export default function FinancesPage() {
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowMoreMenu(false)} />
                   <div className="absolute right-0 top-10 z-20 glass-card rounded-2xl shadow-lg py-1 min-w-[160px]">
-                    <button onClick={() => { setShowCategoryForm(true); setShowMoreMenu(false); }}
+                    <button onClick={() => { handleAddFinanceCategory(); setShowMoreMenu(false); }}
                       className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors">
                       <FolderPlus size={14} className="text-emerald-500" /> Nueva categoría
                     </button>
-                    <button onClick={() => { handleOpenImport(); setShowMoreMenu(false); }}
+                    <button onClick={() => { isPro ? handleOpenImport() : triggerUpgrade('csvImport'); setShowMoreMenu(false); }}
                       className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors">
-                      <Upload size={14} className="text-blue-500" /> Importar extracto
+                      {isPro ? <Upload size={14} className="text-blue-500" /> : <Lock size={14} className="text-amber-500" />} Importar extracto
                     </button>
-                    <button onClick={() => { setShowRules(true); setShowMoreMenu(false); }}
+                    <button onClick={() => { isPro ? setShowRules(true) : triggerUpgrade('classificationRules'); setShowMoreMenu(false); }}
                       className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors">
-                      <Settings size={14} className="text-amber-500" /> Reglas
+                      {isPro ? <Settings size={14} className="text-amber-500" /> : <Lock size={14} className="text-amber-500" />} Reglas
                     </button>
                     <button onClick={() => { setShowSettings(true); setShowMoreMenu(false); }}
                       className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors">
@@ -395,6 +416,8 @@ export default function FinancesPage() {
           onDeleteSaving={deleteSaving}
           onDeposit={deposit}
           onWithdraw={withdraw}
+          savingsLimit={limits.savingsGoals === Infinity ? undefined : limits.savingsGoals}
+          onLimitReached={() => triggerUpgrade('savingsGoals')}
         />
 
         {/* Budget progress bars */}
@@ -548,6 +571,12 @@ export default function FinancesPage() {
         onConfirm={handleDeleteCategory}
         title="¿Eliminar categoría?"
         description="Las transacciones asociadas quedarán sin categoría. Esta acción no se puede deshacer."
+      />
+
+      <UpgradeModal
+        open={showUpgrade}
+        onClose={() => setShowUpgrade(false)}
+        feature={upgradeFeature}
       />
     </div>
   );

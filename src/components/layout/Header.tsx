@@ -10,12 +10,14 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils/cn';
+import { Zap } from 'lucide-react';
 
 interface HeaderProps {
   onStartTutorial?: () => void;
+  isPro?: boolean;
 }
 
-export function Header({ onStartTutorial }: HeaderProps) {
+export function Header({ onStartTutorial, isPro }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
   const { user, signOut } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -140,6 +142,12 @@ export function Header({ onStartTutorial }: HeaderProps) {
               <span className="text-sm font-medium hidden sm:block max-w-[120px] truncate">
                 {firstName}
               </span>
+              {isPro && (
+                <span className="hidden sm:flex items-center gap-0.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none">
+                  <Zap size={9} />
+                  PRO
+                </span>
+              )}
               <ChevronDown size={14} className="text-muted-foreground" />
             </motion.button>
 
@@ -159,7 +167,15 @@ export function Header({ onStartTutorial }: HeaderProps) {
                     className="absolute right-0 top-12 z-20 glass-card min-w-[200px] p-2"
                   >
                     <div className="px-3 py-2 border-b border-white/10 mb-1">
-                      <p className="text-sm font-medium truncate">{name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate">{name}</p>
+                        {isPro && (
+                          <span className="flex items-center gap-0.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none shrink-0">
+                            <Zap size={9} />
+                            PRO
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                     </div>
                     {onStartTutorial && (

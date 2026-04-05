@@ -31,49 +31,41 @@ export function useFinanceCategories() {
   categoriesRef.current = categories;
 
   const createCategory = useCallback(async (data: FinanceCategoryFormData): Promise<FinanceCategory | null> => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No hay sesión activa');
 
-      const maxOrder = categoriesRef.current.reduce((max, c) => Math.max(max, c.sort_order), -1);
+    const maxOrder = categoriesRef.current.reduce((max, c) => Math.max(max, c.sort_order), -1);
 
-      const { data: created, error } = await supabase
-        .from('finance_categories')
-        .insert({
-          user_id: user.id,
-          name: data.name,
-          emoji: data.emoji || null,
-          color: data.color,
-          type: data.type,
-          spending_limit: data.spending_limit ?? null,
-          is_reserved: data.is_reserved ?? false,
-          sort_order: maxOrder + 1,
-        })
-        .select()
-        .single();
+    const payload: Record<string, unknown> = {
+      user_id: user.id,
+      name: data.name,
+      emoji: data.emoji || null,
+      color: data.color,
+      type: data.type,
+      spending_limit: data.spending_limit ?? null,
+      is_reserved: data.is_reserved ?? false,
+      sort_order: maxOrder + 1,
+    };
 
-      if (error) throw error;
-      await fetchCategories();
-      return created as FinanceCategory;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al crear categoría');
-      return null;
-    }
+    const { data: created, error } = await supabase
+      .from('finance_categories')
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    await fetchCategories();
+    return created as FinanceCategory;
   }, [fetchCategories]);
 
   const updateCategory = useCallback(async (id: string, data: Partial<FinanceCategoryFormData>): Promise<boolean> => {
-    try {
-      const { error } = await supabase
-        .from('finance_categories')
-        .update({ ...data, updated_at: new Date().toISOString() })
-        .eq('id', id);
-      if (error) throw error;
-      await fetchCategories();
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al actualizar categoría');
-      return false;
-    }
+    const { error } = await supabase
+      .from('finance_categories')
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
+    await fetchCategories();
+    return true;
   }, [fetchCategories]);
 
   const deleteCategory = useCallback(async (id: string): Promise<boolean> => {

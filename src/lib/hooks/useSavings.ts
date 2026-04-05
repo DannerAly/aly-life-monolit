@@ -27,43 +27,33 @@ export function useSavings() {
   }, []);
 
   const createSaving = useCallback(async (data: SavingFormData): Promise<Saving | null> => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
-      const { data: created, error } = await supabase
-        .from('savings')
-        .insert({
-          user_id: user.id,
-          name: data.name,
-          emoji: data.emoji ?? null,
-          color: data.color,
-          target_amount: data.target_amount ?? null,
-          current_amount: 0,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      await fetchSavings();
-      return created as Saving;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al crear ahorro');
-      return null;
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No hay sesión activa');
+    const { data: created, error } = await supabase
+      .from('savings')
+      .insert({
+        user_id: user.id,
+        name: data.name,
+        emoji: data.emoji ?? null,
+        color: data.color,
+        target_amount: data.target_amount ?? null,
+        current_amount: 0,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    await fetchSavings();
+    return created as Saving;
   }, [fetchSavings]);
 
   const updateSaving = useCallback(async (id: string, data: Partial<SavingFormData>): Promise<boolean> => {
-    try {
-      const { error } = await supabase
-        .from('savings')
-        .update({ ...data, updated_at: new Date().toISOString() })
-        .eq('id', id);
-      if (error) throw error;
-      await fetchSavings();
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al actualizar ahorro');
-      return false;
-    }
+    const { error } = await supabase
+      .from('savings')
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
+    await fetchSavings();
+    return true;
   }, [fetchSavings]);
 
   const deleteSaving = useCallback(async (id: string): Promise<boolean> => {

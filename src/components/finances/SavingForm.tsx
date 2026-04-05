@@ -39,21 +39,26 @@ export function SavingForm({ open, onClose, onSubmit, initial, mode = 'create' }
     if (!name.trim()) { setError('El nombre es requerido'); return; }
     setLoading(true);
     setError('');
-    const parsed = targetAmount.trim() ? parseFloat(targetAmount) : null;
-    const result = await onSubmit({
-      name: name.trim(),
-      emoji: emoji || null,
-      color,
-      target_amount: parsed && parsed > 0 ? parsed : null,
-    });
-    setLoading(false);
-    if (result) {
-      onClose();
-      if (mode === 'create') {
-        setName(''); setEmoji('💰'); setColor('#10b981'); setTargetAmount('');
+    try {
+      const parsed = targetAmount.trim() ? parseFloat(targetAmount) : null;
+      const result = await onSubmit({
+        name: name.trim(),
+        emoji: emoji || null,
+        color,
+        target_amount: parsed && parsed > 0 ? parsed : null,
+      });
+      if (result) {
+        onClose();
+        if (mode === 'create') {
+          setName(''); setEmoji('💰'); setColor('#10b981'); setTargetAmount('');
+        }
+      } else {
+        setError('Error al guardar. Intenta de nuevo.');
       }
-    } else {
-      setError('Error al guardar. Intenta de nuevo.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al guardar.');
+    } finally {
+      setLoading(false);
     }
   };
 

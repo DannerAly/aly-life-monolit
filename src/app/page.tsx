@@ -11,13 +11,16 @@ import { useCategories } from '@/lib/hooks/useCategories';
 import { useGlobalTasks } from '@/lib/hooks/useGlobalTasks';
 import { useHabits } from '@/lib/hooks/useHabits';
 import { useGridLayout } from '@/lib/hooks/useGridLayout';
+import { usePlan } from '@/lib/hooks/usePlan';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { UpgradeModal } from '@/components/ui/UpgradeModal';
 import { OnboardingOverlay } from '@/components/onboarding/OnboardingOverlay';
 import { ObjectivesStatsModal } from '@/components/stats/ObjectivesStatsModal';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import type { HabitFormData, CategoryFormData } from '@/lib/types/database';
 
 export default function HomePage() {
+  const { plan, isPro, limits, fetchPlan } = usePlan();
   const { categories, loading, fetchCategories, createCategory, updateCategory, deleteCategory } = useCategories();
   const {
     tasks: globalTasks,
@@ -53,6 +56,8 @@ export default function HomePage() {
     skipOnboarding,
   } = useOnboarding();
 
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState<string | undefined>();
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [showHabitForm, setShowHabitForm] = useState(false);
   const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
@@ -64,6 +69,7 @@ export default function HomePage() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
+    fetchPlan();
     fetchCategories();
     fetchGlobalTasks();
     fetchHabits();
@@ -78,6 +84,24 @@ export default function HomePage() {
       startOnboarding();
     }
   }, [shouldShowOnboarding, onboardingLoading, loading]);
+
+  const handleAddCategory = () => {
+    if (!isPro && categories.length >= limits.categories) {
+      setUpgradeFeature('categories');
+      setShowUpgrade(true);
+      return;
+    }
+    setShowCategoryForm(true);
+  };
+
+  const handleAddHabit = () => {
+    if (!isPro && habits.length >= limits.habits) {
+      setUpgradeFeature('habits');
+      setShowUpgrade(true);
+      return;
+    }
+    setShowHabitForm(true);
+  };
 
   const selectedHabit = habits.find(h => h.id === selectedHabitId) ?? null;
   const editingHabitData = habits.find(h => h.id === editingHabit);
@@ -127,7 +151,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen mesh-bg">
-      <Header onStartTutorial={startOnboarding} />
+      <Header onStartTutorial={startOnboarding} isPro={isPro} />
 
       <main className="pt-24 pb-24 sm:pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         {loading ? (
@@ -137,8 +161,8 @@ export default function HomePage() {
             categories={categories}
             habits={habits}
             gridLayout={gridLayout}
-            onAddCategory={() => setShowCategoryForm(true)}
-            onAddHabit={() => setShowHabitForm(true)}
+            onAddCategory={handleAddCategory}
+            onAddHabit={handleAddHabit}
             onIncrementHabit={incrementHabit}
             onDecrementHabit={decrementHabit}
             onHabitClick={(id) => setSelectedHabitId(id)}
@@ -249,6 +273,12 @@ export default function HomePage() {
         onNext={nextStep}
         onPrev={prevStep}
         onSkip={skipOnboarding}
+      />
+
+      <UpgradeModal
+        open={showUpgrade}
+        onClose={() => setShowUpgrade(false)}
+        feature={upgradeFeature}
       />
     </div>
   );

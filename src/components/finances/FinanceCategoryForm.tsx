@@ -61,26 +61,31 @@ export function FinanceCategoryForm({
     setError('');
     const parsedLimit = spendingLimit.trim() ? parseFloat(spendingLimit) : null;
     const effectiveLimit = parsedLimit && parsedLimit > 0 ? parsedLimit : null;
-    const result = await onSubmit({
-      name: name.trim(),
-      emoji,
-      color,
-      type,
-      spending_limit: effectiveLimit,
-      is_reserved: effectiveLimit ? isReserved : false,
-    });
-    setLoading(false);
-    if (result) {
-      onClose();
-      if (mode === 'create') {
-        setName('');
-        setEmoji('💰');
-        setColor(CATEGORY_COLORS[0].hex);
-        setType('expense');
-        setSpendingLimit('');
+    try {
+      const result = await onSubmit({
+        name: name.trim(),
+        emoji,
+        color,
+        type,
+        spending_limit: effectiveLimit,
+        is_reserved: effectiveLimit ? isReserved : false,
+      });
+      if (result) {
+        onClose();
+        if (mode === 'create') {
+          setName('');
+          setEmoji('💰');
+          setColor(CATEGORY_COLORS[0].hex);
+          setType('expense');
+          setSpendingLimit('');
+        }
+      } else {
+        setError('Error al guardar. Intenta de nuevo.');
       }
-    } else {
-      setError('Error al guardar. Intenta de nuevo.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al guardar. Intenta de nuevo.');
+    } finally {
+      setLoading(false);
     }
   };
 

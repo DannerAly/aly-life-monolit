@@ -17,6 +17,9 @@ interface SavingsSectionProps {
   onDeleteSaving: (id: string) => Promise<boolean>;
   onDeposit: (id: string, amount: number, description?: string, date?: string) => Promise<boolean>;
   onWithdraw: (id: string, amount: number, description?: string, date?: string) => Promise<boolean>;
+  /** Called when user tries to add a saving goal but hits the free plan limit */
+  onLimitReached?: () => void;
+  savingsLimit?: number;
 }
 
 export function SavingsSection({
@@ -28,6 +31,8 @@ export function SavingsSection({
   onDeleteSaving,
   onDeposit,
   onWithdraw,
+  onLimitReached,
+  savingsLimit,
 }: SavingsSectionProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingSaving, setEditingSaving] = useState<Saving | null>(null);
@@ -76,7 +81,13 @@ export function SavingsSection({
           )}
         </div>
         <button
-          onClick={() => setShowCreateForm(true)}
+          onClick={() => {
+            if (savingsLimit !== undefined && savings.length >= savingsLimit) {
+              onLimitReached?.();
+              return;
+            }
+            setShowCreateForm(true);
+          }}
           className="glass-button rounded-xl px-3 py-2 text-xs font-medium hover:scale-105 transition-transform flex items-center gap-1.5"
         >
           <Plus size={14} />
