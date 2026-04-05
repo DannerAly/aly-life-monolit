@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Moon, Sun, Zap, LogOut, ChevronDown, HelpCircle, Target, Wallet } from 'lucide-react';
+import { Moon, Sun, LogOut, ChevronDown, HelpCircle, Target, Wallet } from 'lucide-react';
+import NextImage from 'next/image';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
@@ -37,12 +38,17 @@ export function Header({ onStartTutorial }: HeaderProps) {
         animate={{ opacity: 1, x: 0 }}
         className="flex items-center gap-2"
       >
-        <div className="glass-button rounded-xl p-2">
-          <Zap size={18} className="text-blue-500" />
-        </div>
         <span className="font-bold text-lg tracking-tight">
           aly<span className="text-blue-500">.</span>life
         </span>
+        <NextImage
+          src="/logo.png"
+          alt="aly.life"
+          width={32}
+          height={32}
+          className="h-8 w-8 object-contain"
+          priority
+        />
       </motion.div>
 
       {/* Navigation Pills */}

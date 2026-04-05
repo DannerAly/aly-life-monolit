@@ -3,7 +3,7 @@
 import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'motion/react';
-import { Zap } from 'lucide-react';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase/client';
 
 function GoogleIcon() {
@@ -53,12 +53,14 @@ function LoginContent() {
           transition={{ delay: 0.1 }}
           className="flex flex-col items-center gap-3 mb-8"
         >
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.2) 0%, rgba(14,165,233,0.15) 100%)', border: '1px solid rgba(59,130,246,0.3)' }}
-          >
-            <Zap size={28} className="text-blue-400" />
-          </div>
+          <Image
+            src="/logo.png"
+            alt="aly.life"
+            width={72}
+            height={72}
+            className="w-18 h-18 object-contain"
+            priority
+          />
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
               aly<span className="text-blue-500">.</span>life
