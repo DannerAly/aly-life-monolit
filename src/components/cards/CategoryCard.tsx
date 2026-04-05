@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { CircularProgress } from '@/components/ui/CircularProgress';
@@ -17,6 +18,11 @@ interface CategoryCardProps {
 
 export function CategoryCard({ category, index, size = 'md', className, dataOnboarding, compact }: CategoryCardProps) {
   const router = useRouter();
+
+  // Prefetch the category page as soon as the card mounts
+  useEffect(() => {
+    router.prefetch(`/category/${category.id}`);
+  }, [router, category.id]);
 
   const progressColor = category.color;
   const alpha16 = `${category.color}28`;

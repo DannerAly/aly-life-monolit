@@ -46,6 +46,7 @@ export function useFinanceCategories() {
           color: data.color,
           type: data.type,
           spending_limit: data.spending_limit ?? null,
+          is_reserved: data.is_reserved ?? false,
           sort_order: maxOrder + 1,
         })
         .select()
@@ -87,6 +88,10 @@ export function useFinanceCategories() {
     }
   }, []);
 
+  const reservedAmount = categories
+    .filter(c => c.is_reserved && c.spending_limit && c.spending_limit > 0)
+    .reduce((sum, c) => sum + (c.spending_limit ?? 0), 0);
+
   return {
     categories,
     loading,
@@ -95,5 +100,6 @@ export function useFinanceCategories() {
     createCategory,
     updateCategory,
     deleteCategory,
+    reservedAmount,
   };
 }

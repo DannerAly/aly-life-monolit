@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'motion/react';
-import { TrendingUp, TrendingDown, Wallet, AlertTriangle } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, AlertTriangle, Lock, CheckCircle } from 'lucide-react';
 import type { MonthlySummary } from '@/lib/types/database';
 import { cn } from '@/lib/utils/cn';
 
@@ -17,10 +17,14 @@ interface FinanceSummaryCardProps {
   periodLabel?: string;
   className?: string;
   budgetAlerts?: BudgetAlert[];
+  reservedAmount?: number;
+  savedAmount?: number;
 }
 
-export function FinanceSummaryCard({ summary, formatAmount, periodLabel = 'del mes', className, budgetAlerts = [] }: FinanceSummaryCardProps) {
+export function FinanceSummaryCard({ summary, formatAmount, periodLabel = 'del mes', className, budgetAlerts = [], reservedAmount = 0, savedAmount = 0 }: FinanceSummaryCardProps) {
   const { totalIncome, totalExpense, balance } = summary;
+  const totalApartado = reservedAmount + savedAmount;
+  const disponible = balance - totalApartado;
   const ratio = totalIncome > 0 ? Math.min((totalExpense / totalIncome) * 100, 100) : 0;
   const isPositive = balance >= 0;
 
@@ -106,6 +110,25 @@ export function FinanceSummaryCard({ summary, formatAmount, periodLabel = 'del m
           />
         </div>
       </div>
+
+      {totalApartado > 0 && (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="flex items-center gap-2 rounded-xl px-3 py-2 bg-amber-500/10">
+            <Lock size={12} className="text-amber-500 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium truncate">Apartado</p>
+              <p className="text-sm font-bold text-amber-600 dark:text-amber-400 tabular-nums">{formatAmount(totalApartado)}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 rounded-xl px-3 py-2 bg-emerald-500/10">
+            <CheckCircle size={12} className="text-emerald-500 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium truncate">Disponible</p>
+              <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{formatAmount(disponible)}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {budgetAlerts.length > 0 && (
         <div className="mt-3 space-y-1">

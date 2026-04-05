@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState, use, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -11,10 +11,10 @@ import { TaskList } from '@/components/tasks/TaskList';
 import { TaskFilters } from '@/components/tasks/TaskFilters';
 import { TaskForm } from '@/components/tasks/TaskForm';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { useCategories } from '@/lib/hooks/useCategories';
 import { useTasks } from '@/lib/hooks/useTasks';
 import { useTaskFilters } from '@/lib/hooks/useTaskFilters';
-import type { TaskWithProgress, CategoryFormData } from '@/lib/types/database';
+import { supabase } from '@/lib/supabase/client';
+import type { TaskWithProgress, Category, CategoryFormData } from '@/lib/types/database';
 import { calculateCategoryAverage } from '@/lib/utils/progress';
 
 interface PageProps {
@@ -25,8 +25,23 @@ export default function CategoryPage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
 
-  const { categories, fetchCategories, updateCategory, deleteCategory } = useCategories();
-  const { tasks, loading, fetchTasks, createTask, updateTask, deleteTask, incrementTask, decrementTask, toggleOneTime } = useTasks(id);
+  // Fetch only this category — much faster than loading all categories
+  const [category, setCategory] = useState<Category | null>(null);
+  const [catLoading, setCatLoading] = useState(true);
+  const [catNotFound, setCatNotFound] = useState(false);
+
+  const fetchCategory = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error || !data) { setCatNotFound(true); setCatLoading(false); return; }
+    setCategory(data as Category);
+    setCatLoading(false);
+  }, [id]);
+
+  const { tasks, loading: tasksLoading, fetchTasks, createTask, updateTask, deleteTask, incrementTask, decrementTask, toggleOneTime } = useTasks(id);
   const { searchQuery, setSearchQuery, statusFilter, setStatusFilter, filteredTasks } = useTaskFilters(tasks);
 
   const [showEditCategory, setShowEditCategory] = useState(false);
@@ -38,11 +53,9 @@ export default function CategoryPage({ params }: PageProps) {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    fetchCategories();
+    fetchCategory();
     fetchTasks(id);
   }, [id]);
-
-  const category = categories.find(c => c.id === id);
 
   // Build live category with computed tasks
   const liveCategory = category
@@ -55,11 +68,22 @@ export default function CategoryPage({ params }: PageProps) {
       }
     : null;
 
+  const handleUpdateCategory = async (data: CategoryFormData) => {
+    const { error } = await supabase
+      .from('categories')
+      .update({ name: data.name, emoji: data.emoji ?? null, color: data.color })
+      .eq('id', id);
+    if (!error) {
+      setCategory(prev => prev ? { ...prev, ...data, emoji: data.emoji ?? null } : prev);
+    }
+    return !error;
+  };
+
   const handleDeleteCategory = async () => {
     setDeletingCat(true);
-    const ok = await deleteCategory(id);
+    const { error } = await supabase.from('categories').delete().eq('id', id);
     setDeletingCat(false);
-    if (ok) router.push('/');
+    if (!error) router.push('/');
   };
 
   const handleDeleteTask = async () => {
@@ -75,7 +99,7 @@ export default function CategoryPage({ params }: PageProps) {
     return ok;
   };
 
-  if (!loading && !liveCategory) {
+  if (catNotFound) {
     return (
       <div className="min-h-screen mesh-bg flex items-center justify-center">
         <div className="glass-card p-8 text-center max-w-sm">
@@ -93,8 +117,9 @@ export default function CategoryPage({ params }: PageProps) {
     <div className="min-h-screen mesh-bg">
       <Header />
       <main className="pt-24 pb-24 sm:pb-12 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
-        {loading || !liveCategory ? (
-          <div className="glass-card h-36 animate-pulse mb-6" />
+        {/* Header: skeleton only while category loads */}
+        {catLoading || !liveCategory ? (
+          <div className="glass-card h-36 animate-pulse mb-6 rounded-3xl" />
         ) : (
           <CategoryHeader
             category={liveCategory}
@@ -103,35 +128,40 @@ export default function CategoryPage({ params }: PageProps) {
           />
         )}
 
-        {liveCategory && (
-          <>
-            <TaskFilters
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              statusFilter={statusFilter}
-              onStatusChange={setStatusFilter}
-              categoryColor={liveCategory.color}
-            />
+        {/* Filters + tasks render immediately, skeleton while tasks load */}
+        <TaskFilters
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          statusFilter={statusFilter}
+          onStatusChange={setStatusFilter}
+          categoryColor={liveCategory?.color ?? '#6366f1'}
+        />
 
-            <TaskList
-              tasks={filteredTasks}
-              categoryColor={liveCategory.color}
-              onIncrement={incrementTask}
-              onDecrement={decrementTask}
-              onToggle={toggleOneTime}
-              onEdit={task => setEditingTask(task)}
-              onDelete={id => setDeletingTaskId(id)}
-              emptyMessage={
-                searchQuery || statusFilter !== 'all'
-                  ? 'No hay objetivos que coincidan con el filtro'
-                  : undefined
-              }
-            />
-          </>
+        {tasksLoading ? (
+          <div className="space-y-3 mt-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="glass-card h-16 animate-pulse rounded-2xl" />
+            ))}
+          </div>
+        ) : (
+          <TaskList
+            tasks={filteredTasks}
+            categoryColor={liveCategory?.color ?? '#6366f1'}
+            onIncrement={incrementTask}
+            onDecrement={decrementTask}
+            onToggle={toggleOneTime}
+            onEdit={task => setEditingTask(task)}
+            onDelete={taskId => setDeletingTaskId(taskId)}
+            emptyMessage={
+              searchQuery || statusFilter !== 'all'
+                ? 'No hay objetivos que coincidan con el filtro'
+                : undefined
+            }
+          />
         )}
       </main>
 
-      {/* FAB: Add Task */}
+      {/* FAB: always visible once category is known */}
       {liveCategory && (
         <motion.button
           initial={{ scale: 0, opacity: 0 }}
@@ -139,7 +169,7 @@ export default function CategoryPage({ params }: PageProps) {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowTaskForm(true)}
-          className="fixed bottom-8 right-8 w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-xl z-30"
+          className="fixed bottom-20 right-6 sm:bottom-8 sm:right-8 w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-xl z-30"
           style={{
             backgroundColor: liveCategory.color,
             boxShadow: `0 8px 32px ${liveCategory.color}50`,
@@ -155,7 +185,7 @@ export default function CategoryPage({ params }: PageProps) {
           <CategoryForm
             open={showEditCategory}
             onClose={() => setShowEditCategory(false)}
-            onSubmit={(data: CategoryFormData) => updateCategory(id, data)}
+            onSubmit={handleUpdateCategory}
             initial={{ name: liveCategory.name, emoji: liveCategory.emoji ?? undefined, color: liveCategory.color }}
             mode="edit"
           />
@@ -203,6 +233,7 @@ export default function CategoryPage({ params }: PageProps) {
             description="Se eliminarán el área y todos sus objetivos. Esta acción no se puede deshacer."
             loading={deletingCat}
           />
+
         </>
       )}
     </div>

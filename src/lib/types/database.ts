@@ -136,6 +136,7 @@ export interface FinanceCategory {
   color: string;
   type: FinanceCategoryType;
   spending_limit: number | null;
+  is_reserved: boolean;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -177,6 +178,7 @@ export interface FinanceCategoryFormData {
   color: string;
   type: FinanceCategoryType;
   spending_limit?: number | null;
+  is_reserved?: boolean;
 }
 
 export interface TransactionFormData {
@@ -210,6 +212,39 @@ export interface CategoryBreakdown {
   count: number;
   spending_limit: number | null;
 }
+
+// ── Savings ──────────────────────────────────────────
+export interface Saving {
+  id: string;
+  user_id: string;
+  name: string;
+  emoji: string | null;
+  color: string;
+  target_amount: number | null;
+  current_amount: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SavingMovement {
+  id: string;
+  saving_id: string;
+  user_id: string;
+  type: 'deposit' | 'withdrawal';
+  amount: number;
+  description: string | null;
+  date: string;
+  created_at: string;
+}
+
+export type SavingFormData = Pick<Saving, 'name' | 'emoji' | 'color' | 'target_amount'>;
+
+export type SavingMovementFormData = {
+  type: 'deposit' | 'withdrawal';
+  amount: number;
+  description?: string;
+  date: string;
+};
 
 // ── Period Views ──
 export type PeriodView = 'week' | 'month' | 'year' | 'custom';

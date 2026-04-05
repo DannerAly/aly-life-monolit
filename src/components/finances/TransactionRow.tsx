@@ -66,8 +66,8 @@ export function TransactionRow({
         {isIncome ? '+' : '-'}{formatAmount(t.amount)}
       </p>
 
-      {/* Actions */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Actions — always visible on mobile, hover only on desktop */}
+      <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
         <button
           onClick={() => onEdit(t)}
           className="glass-button rounded-lg p-1.5 hover:scale-105 transition-transform"

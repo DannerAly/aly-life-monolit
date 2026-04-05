@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Upload, FolderPlus, Settings, SlidersHorizontal } from 'lucide-react';
+import { Plus, Upload, FolderPlus, Settings, SlidersHorizontal, MoreHorizontal } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { PeriodSelector } from '@/components/finances/PeriodSelector';
 import { FinanceSummaryCard } from '@/components/finances/FinanceSummaryCard';
@@ -17,8 +17,10 @@ import { FinanceCategoryForm } from '@/components/finances/FinanceCategoryForm';
 import { FinanceSettingsModal } from '@/components/finances/FinanceSettingsModal';
 import { ImportModal } from '@/components/finances/ImportModal';
 import { ClassificationRulesModal } from '@/components/finances/ClassificationRulesModal';
+import { SavingsSection } from '@/components/finances/SavingsSection';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useFinanceCategories } from '@/lib/hooks/useFinanceCategories';
+import { useSavings } from '@/lib/hooks/useSavings';
 import { useTransactions } from '@/lib/hooks/useTransactions';
 import { useClassificationRules } from '@/lib/hooks/useClassificationRules';
 import { useTransactionFilters } from '@/lib/hooks/useTransactionFilters';
@@ -57,7 +59,19 @@ export default function FinancesPage() {
     createCategory,
     updateCategory,
     deleteCategory,
+    reservedAmount,
   } = useFinanceCategories();
+
+  const {
+    savings,
+    totalSaved,
+    fetchSavings,
+    createSaving,
+    updateSaving,
+    deleteSaving,
+    deposit,
+    withdraw,
+  } = useSavings();
 
   const {
     transactions,
@@ -98,6 +112,7 @@ export default function FinancesPage() {
   const [showRules, setShowRules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<TransactionWithCategory | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState<FinanceCategory | null>(null);
@@ -130,6 +145,7 @@ export default function FinancesPage() {
     fetchCategories();
     fetchRules();
     fetchCurrency();
+    fetchSavings();
   }, []);
 
   // Fetch transactions + chart whenever period/view/range changes
@@ -222,41 +238,77 @@ export default function FinancesPage() {
             customRange={customRange}
             onCustomRangeChange={setCustomRange}
           />
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 items-center">
+            {/* Currency — always visible */}
             <button
               onClick={() => setShowCurrencyPicker(p => !p)}
               className="glass-button rounded-xl px-3 py-2 text-xs font-medium hover:scale-105 transition-transform"
             >
               {currency}
             </button>
-            <button
-              onClick={handleOpenImport}
-              className="glass-button rounded-xl px-3 py-2 text-xs font-medium hover:scale-105 transition-transform flex items-center gap-1.5"
-            >
-              <Upload size={14} />
-              Importar
-            </button>
+
+            {/* Primary action — always visible */}
             <button
               onClick={() => setShowCategoryForm(true)}
-              className="glass-button rounded-xl px-3 py-2 text-xs font-medium hover:scale-105 transition-transform flex items-center gap-1.5"
+              className="glass-button rounded-xl px-3 py-2 text-xs font-medium hover:scale-105 transition-transform hidden sm:flex items-center gap-1.5"
             >
               <FolderPlus size={14} />
               Categoría
             </button>
             <button
+              onClick={handleOpenImport}
+              className="glass-button rounded-xl px-3 py-2 text-xs font-medium hover:scale-105 transition-transform hidden sm:flex items-center gap-1.5"
+            >
+              <Upload size={14} />
+              Importar
+            </button>
+            <button
               onClick={() => setShowRules(true)}
-              className="glass-button rounded-xl px-3 py-2 text-xs font-medium hover:scale-105 transition-transform flex items-center gap-1.5"
+              className="glass-button rounded-xl px-3 py-2 text-xs font-medium hover:scale-105 transition-transform hidden sm:flex items-center gap-1.5"
             >
               <Settings size={14} />
               Reglas
             </button>
             <button
               onClick={() => setShowSettings(true)}
-              className="glass-button rounded-xl px-3 py-2 text-xs font-medium hover:scale-105 transition-transform flex items-center gap-1.5"
+              className="glass-button rounded-xl px-3 py-2 text-xs font-medium hover:scale-105 transition-transform hidden sm:flex items-center gap-1.5"
             >
               <SlidersHorizontal size={14} />
               Ajustes
             </button>
+
+            {/* Mobile: "⋯" more menu */}
+            <div className="relative sm:hidden">
+              <button
+                onClick={() => setShowMoreMenu(p => !p)}
+                className="glass-button rounded-xl px-3 py-2 text-xs font-medium hover:scale-105 transition-transform flex items-center gap-1"
+              >
+                <MoreHorizontal size={16} />
+              </button>
+              {showMoreMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowMoreMenu(false)} />
+                  <div className="absolute right-0 top-10 z-20 glass-card rounded-2xl shadow-lg py-1 min-w-[160px]">
+                    <button onClick={() => { setShowCategoryForm(true); setShowMoreMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors">
+                      <FolderPlus size={14} className="text-emerald-500" /> Nueva categoría
+                    </button>
+                    <button onClick={() => { handleOpenImport(); setShowMoreMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors">
+                      <Upload size={14} className="text-blue-500" /> Importar extracto
+                    </button>
+                    <button onClick={() => { setShowRules(true); setShowMoreMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors">
+                      <Settings size={14} className="text-amber-500" /> Reglas
+                    </button>
+                    <button onClick={() => { setShowSettings(true); setShowMoreMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs hover:bg-white/5 transition-colors">
+                      <SlidersHorizontal size={14} className="text-purple-500" /> Ajustes
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -284,23 +336,31 @@ export default function FinancesPage() {
           <div className="mb-6">
             <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Categorías</p>
             <div className="flex flex-wrap gap-2">
-              {categories.map(cat => (
-                <div
-                  key={cat.id}
-                  className="glass-button rounded-xl px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 group cursor-pointer hover:scale-105 transition-transform"
-                  style={{ borderLeft: `3px solid ${cat.color}` }}
-                  onClick={() => setEditingCategory(cat)}
-                >
-                  <span>{cat.emoji || '📁'}</span>
-                  <span>{cat.name}</span>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setDeletingCategoryId(cat.id); }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-rose-400 hover:text-rose-500 ml-1"
+              {categories.map(cat => {
+                const typeLabel = cat.type === 'income' ? '↑' : cat.type === 'expense' ? '↓' : '↕';
+                const typeTip = cat.type === 'income' ? 'Ingreso' : cat.type === 'expense' ? 'Egreso' : 'Ambos';
+                return (
+                  <div
+                    key={cat.id}
+                    className="glass-button rounded-xl px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 group cursor-pointer hover:scale-105 transition-transform"
+                    style={{ borderLeft: `3px solid ${cat.color}` }}
+                    onClick={() => setEditingCategory(cat)}
+                    title={`${typeTip}${cat.spending_limit ? ` · Límite: ${cat.spending_limit}` : ''}`}
                   >
-                    ×
-                  </button>
-                </div>
-              ))}
+                    <span>{cat.emoji || '📁'}</span>
+                    <span>{cat.name}</span>
+                    <span className="text-[10px] opacity-50 font-bold">{typeLabel}</span>
+                    {cat.is_reserved && <span className="text-[10px]">🔒</span>}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeletingCategoryId(cat.id); }}
+                      className="opacity-0 group-hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-rose-400 hover:text-rose-500 ml-0.5 text-sm leading-none"
+                      aria-label="Eliminar"
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -313,6 +373,8 @@ export default function FinancesPage() {
             periodLabel={getPeriodSummaryLabel(periodView)}
             className="lg:col-span-2"
             budgetAlerts={budgetAlerts}
+            reservedAmount={reservedAmount}
+            savedAmount={totalSaved}
           />
           <div className="glass-card p-6">
             <h3 className="text-sm font-semibold mb-4">Gastos por categoría</h3>
@@ -322,6 +384,18 @@ export default function FinancesPage() {
             />
           </div>
         </div>
+
+        {/* Savings */}
+        <SavingsSection
+          savings={savings}
+          totalSaved={totalSaved}
+          formatAmount={formatAmount}
+          onCreateSaving={createSaving}
+          onUpdateSaving={updateSaving}
+          onDeleteSaving={deleteSaving}
+          onDeposit={deposit}
+          onWithdraw={withdraw}
+        />
 
         {/* Budget progress bars */}
         <CategoryBudgetProgress
@@ -371,7 +445,7 @@ export default function FinancesPage() {
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={() => setShowTransactionForm(true)}
-        className="fixed bottom-8 right-8 w-14 h-14 rounded-2xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 flex items-center justify-center z-30"
+        className="fixed bottom-20 right-6 sm:bottom-8 sm:right-8 w-14 h-14 rounded-2xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 flex items-center justify-center z-30"
       >
         <Plus size={24} />
       </motion.button>
@@ -455,6 +529,7 @@ export default function FinancesPage() {
             color: editingCategory.color,
             type: editingCategory.type,
             spending_limit: editingCategory.spending_limit,
+            is_reserved: editingCategory.is_reserved,
           }}
         />
       )}

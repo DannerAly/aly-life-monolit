@@ -36,6 +36,7 @@ export function FinanceCategoryForm({
   const [spendingLimit, setSpendingLimit] = useState<string>(
     initial?.spending_limit != null ? String(initial.spending_limit) : ''
   );
+  const [isReserved, setIsReserved] = useState(initial?.is_reserved ?? false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -46,6 +47,7 @@ export function FinanceCategoryForm({
       setColor(initial.color ?? CATEGORY_COLORS[0].hex);
       setType(initial.type ?? 'expense');
       setSpendingLimit(initial.spending_limit != null ? String(initial.spending_limit) : '');
+      setIsReserved(initial.is_reserved ?? false);
     }
   }, [open, initial]);
 
@@ -58,12 +60,14 @@ export function FinanceCategoryForm({
     setLoading(true);
     setError('');
     const parsedLimit = spendingLimit.trim() ? parseFloat(spendingLimit) : null;
+    const effectiveLimit = parsedLimit && parsedLimit > 0 ? parsedLimit : null;
     const result = await onSubmit({
       name: name.trim(),
       emoji,
       color,
       type,
-      spending_limit: parsedLimit && parsedLimit > 0 ? parsedLimit : null,
+      spending_limit: effectiveLimit,
+      is_reserved: effectiveLimit ? isReserved : false,
     });
     setLoading(false);
     if (result) {
@@ -125,19 +129,44 @@ export function FinanceCategoryForm({
 
         {/* Spending limit - only for expense/both */}
         {(type === 'expense' || type === 'both') && (
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
-              Límite de gasto mensual
-            </p>
-            <input
-              type="number"
-              value={spendingLimit}
-              onChange={e => setSpendingLimit(e.target.value)}
-              placeholder="Sin límite"
-              min="0"
-              step="0.01"
-              className="w-full px-4 py-2.5 rounded-xl glass-button text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40 bg-transparent"
-            />
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">
+                Límite de gasto mensual
+              </p>
+              <input
+                type="number"
+                value={spendingLimit}
+                onChange={e => setSpendingLimit(e.target.value)}
+                placeholder="Sin límite"
+                min="0"
+                step="0.01"
+                className="w-full px-4 py-2.5 rounded-xl glass-button text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/40 bg-transparent"
+              />
+            </div>
+            {spendingLimit.trim() && parseFloat(spendingLimit) > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsReserved(p => !p)}
+                className={cn(
+                  'w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm transition-all border',
+                  isReserved
+                    ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400'
+                    : 'glass-button border-transparent text-muted-foreground'
+                )}
+              >
+                <span className="font-medium">🔒 Reservar del balance</span>
+                <span className={cn(
+                  'w-9 h-5 rounded-full transition-colors flex items-center px-0.5',
+                  isReserved ? 'bg-amber-500' : 'bg-muted'
+                )}>
+                  <span className={cn(
+                    'w-4 h-4 rounded-full bg-white shadow transition-transform',
+                    isReserved ? 'translate-x-4' : 'translate-x-0'
+                  )} />
+                </span>
+              </button>
+            )}
           </div>
         )}
 
