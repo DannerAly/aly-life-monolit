@@ -146,14 +146,16 @@ export default function FinancesPage() {
     return alerts;
   }, [expenseBreakdown, monthlyBudget, summary.totalExpense]);
 
-  // Initial fetch
+  // Initial fetch — all in parallel for faster page load
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    fetchPlan();
-    fetchCategories();
-    fetchRules();
-    fetchCurrency();
-    fetchSavings();
+    Promise.all([
+      fetchCategories(),
+      fetchCurrency(),
+      fetchRules(),
+      fetchSavings(),
+      fetchPlan(),
+    ]);
   }, []);
 
   // Fetch transactions + chart whenever period/view/range changes

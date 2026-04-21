@@ -41,7 +41,11 @@ export default function CategoryPage({ params }: PageProps) {
     setCatLoading(false);
   }, [id]);
 
-  const { tasks, loading: tasksLoading, fetchTasks, createTask, updateTask, deleteTask, incrementTask, decrementTask, toggleOneTime } = useTasks(id);
+  const {
+    tasks, loading: tasksLoading, loadingMore, hasMore, total,
+    fetchTasks, loadMore, createTask, updateTask, deleteTask,
+    incrementTask, decrementTask, toggleOneTime, reorderTasks,
+  } = useTasks(id);
   const { searchQuery, setSearchQuery, statusFilter, setStatusFilter, filteredTasks } = useTaskFilters(tasks);
 
   const [showEditCategory, setShowEditCategory] = useState(false);
@@ -152,12 +156,27 @@ export default function CategoryPage({ params }: PageProps) {
             onToggle={toggleOneTime}
             onEdit={task => setEditingTask(task)}
             onDelete={taskId => setDeletingTaskId(taskId)}
+            onReorder={searchQuery || statusFilter !== 'all' ? undefined : reorderTasks}
+            onLoadMore={searchQuery || statusFilter !== 'all' ? undefined : loadMore}
+            hasMore={searchQuery || statusFilter !== 'all' ? false : hasMore}
+            loadingMore={loadingMore}
             emptyMessage={
               searchQuery || statusFilter !== 'all'
                 ? 'No hay objetivos que coincidan con el filtro'
                 : undefined
             }
           />
+        )}
+        {/* Show total count hint when paginating */}
+        {!tasksLoading && total > tasks.length && !searchQuery && statusFilter === 'all' && (
+          <p className="text-xs text-muted-foreground text-center mt-4">
+            Mostrando {tasks.length} de {total}
+          </p>
+        )}
+        {!tasksLoading && total > 30 && tasks.length === total && !searchQuery && statusFilter === 'all' && (
+          <p className="text-xs text-muted-foreground text-center mt-4">
+            {total} objetivos en total
+          </p>
         )}
       </main>
 

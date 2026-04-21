@@ -1,13 +1,28 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ListTodo, Loader2 } from 'lucide-react';
+import { ListTodo, Loader2, Search, X } from 'lucide-react';
+import {
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import { TaskRow } from '@/components/tasks/TaskRow';
+import { SortableTaskItem } from '@/components/tasks/SortableTaskItem';
 import { TaskForm } from '@/components/tasks/TaskForm';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { useInfiniteScroll } from '@/lib/hooks/useInfiniteScroll';
 import type { GlobalTask, TaskWithProgress, TaskFormData } from '@/lib/types/database';
 import { cn } from '@/lib/utils/cn';
 
@@ -27,6 +42,11 @@ interface GlobalTaskSectionProps {
   onToggle: (id: string) => Promise<boolean>;
   onUpdate: (id: string, data: Partial<TaskFormData>) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
+  onReorder?: (orderedIds: string[]) => Promise<boolean> | void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  total?: number;
 }
 
 export function GlobalTaskSection({
@@ -37,22 +57,64 @@ export function GlobalTaskSection({
   onToggle,
   onUpdate,
   onDelete,
+  onReorder,
+  onLoadMore,
+  hasMore,
+  loadingMore,
+  total,
 }: GlobalTaskSectionProps) {
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const onLoadMoreRef = useRef(onLoadMore);
+  onLoadMoreRef.current = onLoadMore;
+
+  // Server-side infinite scroll — use ref to avoid recreating observer on callback identity
+  useEffect(() => {
+    if (!hasMore) return;
+    const node = sentinelRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) onLoadMoreRef.current?.();
+      },
+      { rootMargin: '400px' }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore]);
+
   const [editingTask, setEditingTask] = useState<GlobalTask | null>(null);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [filter, setFilter] = useState<TaskFilter>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   const filteredTasks = useMemo(() => {
-    if (filter === 'all') return tasks;
-    if (filter === 'completed') return tasks.filter(t => t.status === 'completed');
-    // pending = active + failed (not completed)
-    return tasks.filter(t => t.status !== 'completed');
-  }, [tasks, filter]);
+    let result = tasks;
 
-  const { visibleItems, hasMore, sentinelRef } = useInfiniteScroll({
-    items: filteredTasks,
-    pageSize: 15,
-  });
+    if (filter === 'completed') {
+      result = result.filter(t => t.status === 'completed');
+    } else if (filter === 'pending') {
+      result = result.filter(t => t.status !== 'completed');
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(t =>
+        t.title.toLowerCase().includes(q) ||
+        (t.sub_filter?.toLowerCase().includes(q)) ||
+        t.category_name.toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [tasks, filter, searchQuery]);
+
+  // Server-side pagination handles the loading; just render what's filtered
+  const visibleItems = filteredTasks;
 
   const counts = useMemo(() => ({
     all: tasks.length,
@@ -72,6 +134,21 @@ export function GlobalTaskSection({
     await onDelete(deletingTaskId);
     setDeletingTaskId(null);
   };
+
+  // Only allow reordering when no search/filter active
+  const canReorder = !!onReorder && !searchQuery.trim() && filter !== 'completed';
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !onReorder) return;
+
+    const oldIndex = tasks.findIndex(t => t.id === active.id);
+    const newIndex = tasks.findIndex(t => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(tasks, oldIndex, newIndex);
+    onReorder(reordered.map(t => t.id));
+  }, [tasks, onReorder]);
 
   return (
     <section className="mt-8">
@@ -112,6 +189,26 @@ export function GlobalTaskSection({
         </div>
       </div>
 
+      {/* Search bar */}
+      <div className="relative mb-4">
+        <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Buscar por título, área o etiqueta..."
+          className="w-full pl-9 pr-9 py-2.5 rounded-xl glass-button text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/40 bg-transparent"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
       {/* Task list */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -119,55 +216,89 @@ export function GlobalTaskSection({
         </div>
       ) : filteredTasks.length === 0 ? (
         <EmptyState
-          icon={filter === 'completed' ? '🎉' : filter === 'pending' ? '✅' : '📋'}
+          icon={searchQuery ? '🔍' : filter === 'completed' ? '🎉' : filter === 'pending' ? '✅' : '📋'}
           title={
-            filter === 'completed'
-              ? 'Sin tareas completadas'
-              : filter === 'pending'
-                ? 'Todo al día'
-                : 'Sin tareas'
+            searchQuery
+              ? 'Sin resultados'
+              : filter === 'completed'
+                ? 'Sin tareas completadas'
+                : filter === 'pending'
+                  ? 'Todo al día'
+                  : 'Sin tareas'
           }
           description={
-            filter === 'completed'
-              ? 'Completa tareas para verlas aquí'
-              : filter === 'pending'
-                ? 'No tienes tareas pendientes'
-                : 'Crea tareas en tus áreas de vida para verlas aquí'
+            searchQuery
+              ? `No se encontraron tareas que coincidan con "${searchQuery}"`
+              : filter === 'completed'
+                ? 'Completa tareas para verlas aquí'
+                : filter === 'pending'
+                  ? 'No tienes tareas pendientes'
+                  : 'Crea tareas en tus áreas de vida para verlas aquí'
           }
         />
       ) : (
         <motion.div className="flex flex-col gap-3">
-          <AnimatePresence mode="popLayout">
-            {visibleItems.map(task => (
-              <TaskRow
-                key={task.id}
-                task={task as TaskWithProgress}
-                categoryColor={task.category_color}
-                categoryMeta={{
-                  name: task.category_name,
-                  emoji: task.category_emoji,
-                  color: task.category_color,
-                }}
-                onIncrement={onIncrement}
-                onDecrement={onDecrement}
-                onToggle={onToggle}
-                onEdit={t => setEditingTask(tasks.find(gt => gt.id === t.id) ?? null)}
-                onDelete={id => setDeletingTaskId(id)}
-              />
-            ))}
-          </AnimatePresence>
+          {canReorder ? (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={visibleItems.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                <AnimatePresence mode="popLayout">
+                  {visibleItems.map(task => (
+                    <SortableTaskItem
+                      key={task.id}
+                      task={task as TaskWithProgress}
+                      categoryColor={task.category_color}
+                      categoryMeta={{
+                        name: task.category_name,
+                        emoji: task.category_emoji,
+                        color: task.category_color,
+                      }}
+                      onIncrement={onIncrement}
+                      onDecrement={onDecrement}
+                      onToggle={onToggle}
+                      onEdit={t => setEditingTask(tasks.find(gt => gt.id === t.id) ?? null)}
+                      onDelete={id => setDeletingTaskId(id)}
+                    />
+                  ))}
+                </AnimatePresence>
+              </SortableContext>
+            </DndContext>
+          ) : (
+            <AnimatePresence mode="popLayout">
+              {visibleItems.map(task => (
+                <TaskRow
+                  key={task.id}
+                  task={task as TaskWithProgress}
+                  categoryColor={task.category_color}
+                  categoryMeta={{
+                    name: task.category_name,
+                    emoji: task.category_emoji,
+                    color: task.category_color,
+                  }}
+                  onIncrement={onIncrement}
+                  onDecrement={onDecrement}
+                  onToggle={onToggle}
+                  onEdit={t => setEditingTask(tasks.find(gt => gt.id === t.id) ?? null)}
+                  onDelete={id => setDeletingTaskId(id)}
+                />
+              ))}
+            </AnimatePresence>
+          )}
 
-          {/* Infinite scroll sentinel */}
-          {hasMore && (
+          {/* Server-side pagination sentinel (only when no filter active) */}
+          {hasMore && !searchQuery && filter === 'all' && (
             <div ref={sentinelRef} className="flex items-center justify-center py-4">
-              <Loader2 size={18} className="animate-spin text-muted-foreground/50" />
+              {loadingMore ? (
+                <Loader2 size={18} className="animate-spin text-muted-foreground/50" />
+              ) : (
+                <div className="h-4" />
+              )}
             </div>
           )}
 
-          {/* Summary when truncated */}
-          {!hasMore && filteredTasks.length > 15 && (
+          {/* Count footer */}
+          {total !== undefined && total > 0 && !searchQuery && filter === 'all' && (
             <p className="text-xs text-muted-foreground text-center py-2">
-              Mostrando {filteredTasks.length} tareas
+              {hasMore ? `Mostrando ${tasks.length} de ${total}` : `${total} tareas en total`}
             </p>
           )}
         </motion.div>

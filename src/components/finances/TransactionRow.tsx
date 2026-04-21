@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { motion } from 'motion/react';
 import { Pencil, Trash2 } from 'lucide-react';
 import type { TransactionWithCategory } from '@/lib/types/database';
@@ -13,7 +14,7 @@ interface TransactionRowProps {
   onDelete: (id: string) => void;
 }
 
-export function TransactionRow({
+function TransactionRowBase({
   transaction: t,
   formatAmount,
   onEdit,
@@ -84,3 +85,20 @@ export function TransactionRow({
     </motion.div>
   );
 }
+
+export const TransactionRow = memo(TransactionRowBase, (prev, next) => {
+  const p = prev.transaction;
+  const n = next.transaction;
+  return (
+    p.id === n.id &&
+    p.amount === n.amount &&
+    p.description === n.description &&
+    p.date === n.date &&
+    p.type === n.type &&
+    p.category_id === n.category_id &&
+    p.category_name === n.category_name &&
+    p.category_color === n.category_color &&
+    p.category_emoji === n.category_emoji &&
+    prev.formatAmount === next.formatAmount
+  );
+});

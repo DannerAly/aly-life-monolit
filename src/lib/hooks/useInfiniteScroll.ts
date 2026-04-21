@@ -11,9 +11,9 @@ export function useInfiniteScroll<T>({ items, pageSize = 20 }: UseInfiniteScroll
   const [visibleCount, setVisibleCount] = useState(pageSize);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // Reset when items change (e.g. filter change)
+  // Only shrink when items shrinks (filter applied). Don't reset on growth.
   useEffect(() => {
-    setVisibleCount(pageSize);
+    setVisibleCount(prev => Math.min(Math.max(prev, pageSize), Math.max(items.length, pageSize)));
   }, [items.length, pageSize]);
 
   const visibleItems = items.slice(0, visibleCount);

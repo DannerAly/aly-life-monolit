@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Minus, Plus, Edit2, Trash2, CheckCircle2, Circle } from 'lucide-react';
 import { CircularProgress } from '@/components/ui/CircularProgress';
@@ -26,7 +26,7 @@ interface TaskRowProps {
   onDelete: (id: string) => void;
 }
 
-export function TaskRow({
+function TaskRowBase({
   task,
   categoryColor,
   categoryMeta,
@@ -194,3 +194,23 @@ export function TaskRow({
     </motion.div>
   );
 }
+
+export const TaskRow = memo(TaskRowBase, (prev, next) => {
+  // Only re-render if relevant fields changed
+  const p = prev.task;
+  const n = next.task;
+  return (
+    p.id === n.id &&
+    p.current_value === n.current_value &&
+    p.target_value === n.target_value &&
+    p.status === n.status &&
+    p.title === n.title &&
+    p.emoji === n.emoji &&
+    p.sub_filter === n.sub_filter &&
+    p.due_date === n.due_date &&
+    p.priority === n.priority &&
+    prev.categoryColor === next.categoryColor &&
+    prev.categoryMeta?.name === next.categoryMeta?.name &&
+    prev.categoryMeta?.color === next.categoryMeta?.color
+  );
+});

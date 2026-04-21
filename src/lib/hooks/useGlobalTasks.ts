@@ -2,22 +2,74 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import type { Category, Task, GlobalTask } from '@/lib/types/database';
+import type { Category, Task, GlobalTask, TaskStatus } from '@/lib/types/database';
 import { withProgress, deriveStatus } from '@/lib/utils/progress';
-import { daysUntil } from '@/lib/utils/date';
+
+const PAGE_SIZE = 30;
 
 export function useGlobalTasks() {
   const [tasks, setTasks] = useState<GlobalTask[]>([]);
+  const [catMap, setCatMap] = useState<Map<string, Category>>(new Map());
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  const pageRef = useRef(0);
+  const fetchingRef = useRef(false);
+
+  const reconcileStale = useCallback((rawTasks: Task[]): Task[] => {
+    const staleByStatus = new Map<TaskStatus, string[]>();
+    const reconciled = rawTasks.map(t => {
+      const newStatus = deriveStatus(t);
+      if (newStatus !== t.status) {
+        const list = staleByStatus.get(newStatus) ?? [];
+        list.push(t.id);
+        staleByStatus.set(newStatus, list);
+        return { ...t, status: newStatus };
+      }
+      return t;
+    });
+    // Fire-and-forget batched updates
+    if (staleByStatus.size > 0) {
+      for (const [status, ids] of staleByStatus) {
+        supabase.from('tasks').update({ status }).in('id', ids).then(
+          () => {},
+          err => console.error('[reconcileStale] update failed:', err)
+        );
+      }
+    }
+    return reconciled;
+  }, []);
+
+  const decorateTasks = useCallback((rawTasks: Task[], cats: Map<string, Category>): GlobalTask[] => {
+    return rawTasks.map(t => {
+      const cat = cats.get(t.category_id);
+      return {
+        ...withProgress(t),
+        category_name: cat?.name ?? '',
+        category_emoji: cat?.emoji ?? null,
+        category_color: cat?.color ?? '#6366f1',
+      };
+    });
+  }, []);
+
   const fetchGlobalTasks = useCallback(async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     setLoading(true);
     setError(null);
+    pageRef.current = 0;
+
     try {
       const [catRes, taskRes] = await Promise.all([
         supabase.from('categories').select('*').order('sort_order', { ascending: true }),
-        supabase.from('tasks').select('*').order('sort_order', { ascending: true }),
+        supabase
+          .from('tasks')
+          .select('*', { count: 'exact' })
+          .order('sort_order', { ascending: true })
+          .range(0, PAGE_SIZE - 1),
       ]);
 
       if (catRes.error) throw catRes.error;
@@ -25,52 +77,75 @@ export function useGlobalTasks() {
 
       const cats = catRes.data as Category[];
       const rawTasks = taskRes.data as Task[];
+      const count = taskRes.count ?? 0;
 
-      // Reconcile stale statuses
-      const stale = rawTasks.filter(t => deriveStatus(t) !== t.status);
-      if (stale.length > 0) {
-        await Promise.all(
-          stale.map(t =>
-            supabase.from('tasks').update({ status: deriveStatus(t) }).eq('id', t.id)
-          )
-        );
-        stale.forEach(t => { t.status = deriveStatus(t); });
-      }
+      const newCatMap = new Map(cats.map(c => [c.id, c]));
+      setCatMap(newCatMap);
 
-      const catMap = new Map(cats.map(c => [c.id, c]));
+      const reconciled = reconcileStale(rawTasks);
+      const decorated = decorateTasks(reconciled, newCatMap);
 
-      const globalTasks: GlobalTask[] = rawTasks.map(t => {
-        const cat = catMap.get(t.category_id);
-        return {
-          ...withProgress(t),
-          category_name: cat?.name ?? '',
-          category_emoji: cat?.emoji ?? null,
-          category_color: cat?.color ?? '#6366f1',
-        };
+      // Sort: completed last, then sort_order
+      decorated.sort((a, b) => {
+        const aC = a.status === 'completed' ? 1 : 0;
+        const bC = b.status === 'completed' ? 1 : 0;
+        if (aC !== bC) return aC - bC;
+        return (a.sort_order ?? 9999) - (b.sort_order ?? 9999);
       });
 
-      // Sort: completed last → priority (lower first, null last) → due_date proximity (sooner first, null last)
-      globalTasks.sort((a, b) => {
-        const aCompleted = a.status === 'completed' ? 1 : 0;
-        const bCompleted = b.status === 'completed' ? 1 : 0;
-        if (aCompleted !== bCompleted) return aCompleted - bCompleted;
-
-        const aPri = a.priority ?? 999;
-        const bPri = b.priority ?? 999;
-        if (aPri !== bPri) return aPri - bPri;
-
-        const aDays = daysUntil(a.due_date) ?? 9999;
-        const bDays = daysUntil(b.due_date) ?? 9999;
-        return aDays - bDays;
-      });
-
-      setTasks(globalTasks);
+      setTasks(decorated);
+      setTotal(count);
+      setHasMore(count > PAGE_SIZE);
+      pageRef.current = 1;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar tareas');
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
-  }, []);
+  }, [reconcileStale, decorateTasks]);
+
+  const loadMore = useCallback(async () => {
+    if (fetchingRef.current || !hasMore) return;
+    fetchingRef.current = true;
+    setLoadingMore(true);
+
+    try {
+      const from = pageRef.current * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .order('sort_order', { ascending: true })
+        .range(from, to);
+
+      if (error) throw error;
+
+      const rawTasks = data as Task[];
+      const reconciled = reconcileStale(rawTasks);
+      const decorated = decorateTasks(reconciled, catMap);
+
+      setTasks(prev => {
+        const combined = [...prev, ...decorated];
+        combined.sort((a, b) => {
+          const aC = a.status === 'completed' ? 1 : 0;
+          const bC = b.status === 'completed' ? 1 : 0;
+          if (aC !== bC) return aC - bC;
+          return (a.sort_order ?? 9999) - (b.sort_order ?? 9999);
+        });
+        return combined;
+      });
+
+      pageRef.current += 1;
+      setHasMore(decorated.length === PAGE_SIZE && (pageRef.current * PAGE_SIZE) < total);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cargar más tareas');
+    } finally {
+      setLoadingMore(false);
+      fetchingRef.current = false;
+    }
+  }, [hasMore, total, catMap, reconcileStale, decorateTasks]);
 
   const updateLocalTask = (id: string, updatedTask: Task) => {
     setTasks(prev =>
@@ -179,6 +254,26 @@ export function useGlobalTasks() {
       const { error } = await supabase.from('tasks').delete().eq('id', id);
       if (error) throw error;
       setTasks(prev => prev.filter(t => t.id !== id));
+      setTotal(prev => Math.max(0, prev - 1));
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const reorderTasks = useCallback(async (orderedIds: string[]): Promise<boolean> => {
+    const idToIndex = new Map(orderedIds.map((id, i) => [id, i]));
+    setTasks(prev => {
+      const next = [...prev];
+      next.sort((a, b) => (idToIndex.get(a.id) ?? 9999) - (idToIndex.get(b.id) ?? 9999));
+      return next.map((t, i) => ({ ...t, sort_order: i }));
+    });
+    try {
+      await Promise.all(
+        orderedIds.map((id, i) =>
+          supabase.from('tasks').update({ sort_order: i }).eq('id', id)
+        )
+      );
       return true;
     } catch {
       return false;
@@ -188,12 +283,17 @@ export function useGlobalTasks() {
   return {
     tasks,
     loading,
+    loadingMore,
+    hasMore,
+    total,
     error,
     fetchGlobalTasks,
+    loadMore,
     incrementTask,
     decrementTask,
     toggleOneTime,
     updateTask,
     deleteTask,
+    reorderTasks,
   };
 }

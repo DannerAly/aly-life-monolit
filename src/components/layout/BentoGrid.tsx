@@ -89,8 +89,10 @@ export function BentoGrid({
   onDeleteHabit,
   onHeroClick,
 }: BentoGridProps) {
-  const allTasks = categories.flatMap(c => c.tasks);
-  const stats = getOverallStats(allTasks);
+  const stats = useMemo(() => {
+    const allTasks = categories.flatMap(c => c.tasks);
+    return getOverallStats(allTasks);
+  }, [categories]);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
@@ -165,8 +167,8 @@ export function BentoGrid({
     onReorder(updated);
   }, [orderedItems, onReorder]);
 
-  const catMap = new Map(categories.map(c => [c.id, c]));
-  const habitMap = new Map(habits.map(h => [h.id, h]));
+  const catMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
+  const habitMap = useMemo(() => new Map(habits.map(h => [h.id, h])), [habits]);
 
   const firstHabitId = orderedItems.find(i => i.type === 'habit')?.id;
   const firstCategoryId = orderedItems.find(i => i.type === 'category')?.id;

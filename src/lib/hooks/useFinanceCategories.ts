@@ -54,19 +54,24 @@ export function useFinanceCategories() {
       .single();
 
     if (error) throw new Error(error.message);
-    await fetchCategories();
-    return created as FinanceCategory;
-  }, [fetchCategories]);
+    // Optimistic: append locally
+    const newCat = created as FinanceCategory;
+    setCategories(prev => [...prev, newCat].sort((a, b) => a.sort_order - b.sort_order));
+    return newCat;
+  }, []);
 
   const updateCategory = useCallback(async (id: string, data: Partial<FinanceCategoryFormData>): Promise<boolean> => {
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('finance_categories')
       .update({ ...data, updated_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', id)
+      .select()
+      .single();
     if (error) throw new Error(error.message);
-    await fetchCategories();
+    const u = updated as FinanceCategory;
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, ...u } : c));
     return true;
-  }, [fetchCategories]);
+  }, []);
 
   const deleteCategory = useCallback(async (id: string): Promise<boolean> => {
     try {

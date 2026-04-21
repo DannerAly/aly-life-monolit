@@ -25,8 +25,11 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refrescar sesión (importante para tokens expirados)
-  const { data: { user } } = await supabase.auth.getUser();
+  // Fast cookie-based session check (no network call)
+  // getSession reads the JWT from cookies locally — instant.
+  // Token validation happens client-side in pages via useAuth.
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
 
   const isAuthRoute =
     request.nextUrl.pathname.startsWith('/login') ||

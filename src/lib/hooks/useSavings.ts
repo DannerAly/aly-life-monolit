@@ -42,19 +42,23 @@ export function useSavings() {
       .select()
       .single();
     if (error) throw new Error(error.message);
-    await fetchSavings();
-    return created as Saving;
-  }, [fetchSavings]);
+    const newSaving = created as Saving;
+    setSavings(prev => [...prev, newSaving]);
+    return newSaving;
+  }, []);
 
   const updateSaving = useCallback(async (id: string, data: Partial<SavingFormData>): Promise<boolean> => {
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('savings')
       .update({ ...data, updated_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', id)
+      .select()
+      .single();
     if (error) throw new Error(error.message);
-    await fetchSavings();
+    const u = updated as Saving;
+    setSavings(prev => prev.map(s => s.id === id ? u : s));
     return true;
-  }, [fetchSavings]);
+  }, []);
 
   const deleteSaving = useCallback(async (id: string): Promise<boolean> => {
     try {
@@ -89,18 +93,20 @@ export function useSavings() {
         date: today,
       });
       if (mvErr) throw mvErr;
+      const newAmount = saving.current_amount + amount;
       const { error: upErr } = await supabase
         .from('savings')
-        .update({ current_amount: saving.current_amount + amount, updated_at: new Date().toISOString() })
+        .update({ current_amount: newAmount, updated_at: new Date().toISOString() })
         .eq('id', savingId);
       if (upErr) throw upErr;
-      await fetchSavings();
+      // Optimistic: update local state directly
+      setSavings(prev => prev.map(s => s.id === savingId ? { ...s, current_amount: newAmount } : s));
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al depositar');
       return false;
     }
-  }, [savings, fetchSavings]);
+  }, [savings]);
 
   const withdraw = useCallback(async (
     savingId: string,
@@ -126,18 +132,19 @@ export function useSavings() {
         date: today,
       });
       if (mvErr) throw mvErr;
+      const newAmount = saving.current_amount - amount;
       const { error: upErr } = await supabase
         .from('savings')
-        .update({ current_amount: saving.current_amount - amount, updated_at: new Date().toISOString() })
+        .update({ current_amount: newAmount, updated_at: new Date().toISOString() })
         .eq('id', savingId);
       if (upErr) throw upErr;
-      await fetchSavings();
+      setSavings(prev => prev.map(s => s.id === savingId ? { ...s, current_amount: newAmount } : s));
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al retirar');
       return false;
     }
-  }, [savings, fetchSavings]);
+  }, [savings]);
 
   const totalSaved = savings.reduce((sum, s) => sum + s.current_amount, 0);
 

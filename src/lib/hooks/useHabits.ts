@@ -139,26 +139,47 @@ export function useHabits() {
         .single();
 
       if (error) throw error;
-      await fetchHabits();
-      return created as Habit;
+      // Optimistic: append the new habit to local state with default period values
+      const h = created as Habit;
+      const newHabit: HabitWithLog = {
+        ...h,
+        frequency: h.frequency ?? 'daily',
+        todayValue: 0,
+        periodValue: 0,
+        periodGoal: h.daily_goal,
+        progress: 0,
+        goalMet: false,
+      };
+      setHabits(prev => [...prev, newHabit]);
+      return h;
     } catch {
       return null;
     }
-  }, [fetchHabits]);
+  }, []);
 
   const updateHabit = useCallback(async (id: string, data: Partial<HabitFormData>): Promise<boolean> => {
     try {
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from('habits')
         .update({ ...data, updated_at: new Date().toISOString() })
-        .eq('id', id);
+        .eq('id', id)
+        .select()
+        .single();
       if (error) throw error;
-      await fetchHabits();
+      const u = updated as Habit;
+      setHabits(prev => prev.map(h => h.id === id ? {
+        ...h,
+        ...u,
+        frequency: u.frequency ?? h.frequency,
+        periodGoal: u.daily_goal,
+        progress: u.daily_goal > 0 ? Math.min(Math.round((h.periodValue / u.daily_goal) * 100), 100) : 0,
+        goalMet: h.periodValue >= u.daily_goal,
+      } : h));
       return true;
     } catch {
       return false;
     }
-  }, [fetchHabits]);
+  }, []);
 
   const deleteHabit = useCallback(async (id: string): Promise<boolean> => {
     try {
@@ -201,7 +222,7 @@ export function useHabits() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    await supabase
+    const { error } = await supabase
       .from('habit_logs')
       .upsert(
         {
@@ -213,7 +234,13 @@ export function useHabits() {
         },
         { onConflict: 'habit_id,user_id,date' }
       );
-  }, []);
+
+    // Rollback optimistic update on failure
+    if (error) {
+      console.error('[incrementHabit] upsert failed:', error);
+      await fetchHabits();
+    }
+  }, [fetchHabits]);
 
   const decrementHabit = useCallback(async (id: string) => {
     let newTodayValue = -1;
@@ -244,7 +271,7 @@ export function useHabits() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    await supabase
+    const { error } = await supabase
       .from('habit_logs')
       .upsert(
         {
@@ -256,7 +283,12 @@ export function useHabits() {
         },
         { onConflict: 'habit_id,user_id,date' }
       );
-  }, []);
+
+    if (error) {
+      console.error('[decrementHabit] upsert failed:', error);
+      await fetchHabits();
+    }
+  }, [fetchHabits]);
 
   return {
     habits,

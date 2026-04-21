@@ -69,6 +69,9 @@ export function useTransactions(cycleDay = 1) {
   const fetchTransactions = useCallback(async (period?: string) => {
     setLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+
       let firstDay: string, lastDay: string;
       if (periodViewRef.current === 'custom' && customRangeRef.current) {
         firstDay = customRangeRef.current.from;
@@ -84,13 +87,16 @@ export function useTransactions(cycleDay = 1) {
         supabase
           .from('transactions')
           .select('*')
+          .eq('user_id', user.id)
           .gte('date', firstDay)
           .lte('date', lastDay)
           .order('date', { ascending: false })
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false })
+          .limit(500),
         supabase
           .from('finance_categories')
           .select('*')
+          .eq('user_id', user.id)
           .order('sort_order', { ascending: true }),
       ]);
 
@@ -164,6 +170,19 @@ export function useTransactions(cycleDay = 1) {
       .sort((a, b) => b.total - a.total);
   }, [transactions, categoriesMap]);
 
+  const categoriesMapRef = useRef(categoriesMap);
+  categoriesMapRef.current = categoriesMap;
+
+  const decorateTxn = useCallback((t: Transaction): TransactionWithCategory => {
+    const cat = t.category_id ? categoriesMapRef.current.get(t.category_id) : null;
+    return {
+      ...t,
+      category_name: cat?.name ?? null,
+      category_emoji: cat?.emoji ?? null,
+      category_color: cat?.color ?? null,
+    };
+  }, []);
+
   const createTransaction = useCallback(async (data: TransactionFormData): Promise<Transaction | null> => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -183,26 +202,35 @@ export function useTransactions(cycleDay = 1) {
         .single();
 
       if (error) throw error;
-      await fetchTransactions();
+      // Optimistic: insert locally, no refetch
+      const decorated = decorateTxn(created as Transaction);
+      setTransactions(prev => {
+        const next = [decorated, ...prev];
+        next.sort((a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at));
+        return next;
+      });
       return created as Transaction;
     } catch {
       return null;
     }
-  }, [fetchTransactions]);
+  }, [decorateTxn]);
 
   const updateTransaction = useCallback(async (id: string, data: Partial<TransactionFormData>): Promise<boolean> => {
     try {
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from('transactions')
         .update({ ...data, updated_at: new Date().toISOString() })
-        .eq('id', id);
+        .eq('id', id)
+        .select()
+        .single();
       if (error) throw error;
-      await fetchTransactions();
+      const decorated = decorateTxn(updated as Transaction);
+      setTransactions(prev => prev.map(t => t.id === id ? decorated : t));
       return true;
     } catch {
       return false;
     }
-  }, [fetchTransactions]);
+  }, [decorateTxn]);
 
   const deleteTransaction = useCallback(async (id: string): Promise<boolean> => {
     try {
@@ -239,15 +267,29 @@ export function useTransactions(cycleDay = 1) {
         .select();
 
       if (error) throw error;
-      await fetchTransactions();
+      // Optimistic: merge new rows that fall within current range
+      const effRange = getEffectiveRange();
+      const newTxns = (data as Transaction[] ?? [])
+        .filter(t => t.date >= effRange.firstDay && t.date <= effRange.lastDay)
+        .map(decorateTxn);
+      if (newTxns.length > 0) {
+        setTransactions(prev => {
+          const next = [...newTxns, ...prev];
+          next.sort((a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at));
+          return next;
+        });
+      }
       return data?.length ?? 0;
     } catch {
       return 0;
     }
-  }, [fetchTransactions]);
+  }, [decorateTxn, getEffectiveRange]);
 
   const fetchPeriodTotals = useCallback(async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       const pv = periodViewRef.current;
       const cp = currentPeriodRef.current;
       const cd = cycleDayRef.current;
@@ -258,6 +300,7 @@ export function useTransactions(cycleDay = 1) {
         const { data, error } = await supabase
           .from('transactions')
           .select('type, amount, date')
+          .eq('user_id', user.id)
           .gte('date', cr.from)
           .lte('date', cr.to);
         if (error) throw error;
@@ -301,6 +344,7 @@ export function useTransactions(cycleDay = 1) {
         const { data, error } = await supabase
           .from('transactions')
           .select('type, amount, date')
+          .eq('user_id', user.id)
           .gte('date', firstDay)
           .lte('date', lastDay);
         if (error) throw error;
@@ -336,6 +380,7 @@ export function useTransactions(cycleDay = 1) {
         const { data, error } = await supabase
           .from('transactions')
           .select('type, amount, date')
+          .eq('user_id', user.id)
           .gte('date', firstDay)
           .lte('date', lastDay);
         if (error) throw error;
@@ -372,6 +417,7 @@ export function useTransactions(cycleDay = 1) {
         const { data, error } = await supabase
           .from('transactions')
           .select('type, amount, date')
+          .eq('user_id', user.id)
           .gte('date', firstDay)
           .lte('date', lastDay);
         if (error) throw error;
@@ -399,9 +445,13 @@ export function useTransactions(cycleDay = 1) {
   }, []);
 
   const fetchExistingHashes = useCallback(async (): Promise<Set<string>> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return new Set();
+
     const { data } = await supabase
       .from('transactions')
       .select('import_hash')
+      .eq('user_id', user.id)
       .eq('is_imported', true)
       .not('import_hash', 'is', null);
 

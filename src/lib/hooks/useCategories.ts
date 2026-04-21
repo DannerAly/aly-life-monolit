@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import type { Category, CategoryWithTasks, CategoryFormData, Task } from '@/lib/types/database';
+import type { Category, CategoryWithTasks, CategoryFormData, Task, TaskStatus } from '@/lib/types/database';
 import { calculateCategoryAverage, deriveStatus } from '@/lib/utils/progress';
 
 export function useCategories() {
@@ -14,9 +14,12 @@ export function useCategories() {
     setLoading(true);
     setError(null);
     try {
+      // Only fetch the fields needed to compute per-category stats — no heavy fields
       const [catRes, taskRes] = await Promise.all([
         supabase.from('categories').select('*').order('sort_order', { ascending: true }),
-        supabase.from('tasks').select('*').order('sort_order', { ascending: true }),
+        supabase
+          .from('tasks')
+          .select('id, category_id, current_value, target_value, status, due_date, task_type, sort_order'),
       ]);
 
       if (catRes.error) throw catRes.error;
@@ -25,28 +28,25 @@ export function useCategories() {
       const cats = catRes.data as Category[];
       const tasks = taskRes.data as Task[];
 
-      // Reconcile status for overdue tasks
-      const staleIds = tasks
-        .filter(t => deriveStatus(t) !== t.status)
-        .map(t => t.id);
-
-      if (staleIds.length > 0) {
-        await Promise.all(
-          tasks
-            .filter(t => staleIds.includes(t.id))
-            .map(t =>
-              supabase
-                .from('tasks')
-                .update({ status: deriveStatus(t) })
-                .eq('id', t.id)
-            )
-        );
-        // Update local
-        tasks.forEach(t => {
-          if (staleIds.includes(t.id)) {
-            t.status = deriveStatus(t);
-          }
-        });
+      // Batched + fire-and-forget stale status reconciliation
+      const staleByStatus = new Map<TaskStatus, string[]>();
+      for (const t of tasks) {
+        const newStatus = deriveStatus(t);
+        if (newStatus !== t.status) {
+          const list = staleByStatus.get(newStatus) ?? [];
+          list.push(t.id);
+          staleByStatus.set(newStatus, list);
+          t.status = newStatus; // update local copy for rendering
+        }
+      }
+      // Fire-and-forget: run updates in background, don't block render
+      if (staleByStatus.size > 0) {
+        for (const [status, ids] of staleByStatus) {
+          supabase.from('tasks').update({ status }).in('id', ids).then(
+            () => {},
+            err => console.error('[reconcileStale] update failed:', err)
+          );
+        }
       }
 
       const grouped: CategoryWithTasks[] = cats.map(cat => {
@@ -87,13 +87,21 @@ export function useCategories() {
         .select()
         .single();
       if (error) throw error;
-      await fetchCategories();
-      return created as Category;
+      // Optimistic: append with empty tasks
+      const newCat = created as Category;
+      setCategories(prev => [...prev, {
+        ...newCat,
+        tasks: [],
+        task_count: 0,
+        average_progress: 0,
+        completed_count: 0,
+      }]);
+      return newCat;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al crear categoría');
       return null;
     }
-  }, [fetchCategories]);
+  }, []);
 
   const updateCategory = useCallback(async (id: string, data: Partial<CategoryFormData>): Promise<boolean> => {
     try {
@@ -102,13 +110,16 @@ export function useCategories() {
         .update({ name: data.name, emoji: data.emoji, color: data.color })
         .eq('id', id);
       if (error) throw error;
-      await fetchCategories();
+      setCategories(prev => prev.map(c => c.id === id
+        ? { ...c, name: data.name ?? c.name, emoji: data.emoji ?? c.emoji, color: data.color ?? c.color }
+        : c
+      ));
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al actualizar categoría');
       return false;
     }
-  }, [fetchCategories]);
+  }, []);
 
   const deleteCategory = useCallback(async (id: string): Promise<boolean> => {
     try {

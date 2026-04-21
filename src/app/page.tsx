@@ -25,12 +25,17 @@ export default function HomePage() {
   const {
     tasks: globalTasks,
     loading: tasksLoading,
+    loadingMore: tasksLoadingMore,
+    hasMore: tasksHasMore,
+    total: tasksTotal,
     fetchGlobalTasks,
+    loadMore: loadMoreTasks,
     incrementTask,
     decrementTask,
     toggleOneTime,
     updateTask,
     deleteTask,
+    reorderTasks,
   } = useGlobalTasks();
   const {
     habits,
@@ -69,12 +74,15 @@ export default function HomePage() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    fetchPlan();
-    fetchCategories();
-    fetchGlobalTasks();
-    fetchHabits();
-    fetchLayout();
-    fetchOnboardingStatus();
+    // Fire all in parallel. Non-critical ones (plan, onboarding, layout) don't block UI.
+    Promise.all([
+      fetchCategories(),
+      fetchGlobalTasks(),
+      fetchHabits(),
+      fetchLayout(),
+      fetchPlan(),
+      fetchOnboardingStatus(),
+    ]);
   }, []);
 
   // Auto-start onboarding for new users
@@ -178,11 +186,16 @@ export default function HomePage() {
         <GlobalTaskSection
           tasks={globalTasks}
           loading={tasksLoading}
+          loadingMore={tasksLoadingMore}
+          hasMore={tasksHasMore}
+          total={tasksTotal}
+          onLoadMore={loadMoreTasks}
           onIncrement={incrementTask}
           onDecrement={decrementTask}
           onToggle={toggleOneTime}
           onUpdate={updateTask}
           onDelete={deleteTask}
+          onReorder={reorderTasks}
         />
       </main>
 

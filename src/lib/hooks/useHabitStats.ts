@@ -67,28 +67,35 @@ export function useHabitStats(habitId: string | null) {
         monthlyData.push({ date: ds, value, goalMet: isDayMet(value, dailyGoal, frequency) });
       }
 
-      // Streaks — count consecutive days where the day's goal was met
+      // Streaks — efficient: only iterate logs that meet goal, track date gaps
       let bestStreak = 0;
-      let streak = 0;
       let totalDaysGoalMet = 0;
 
-      const allDates: string[] = [];
-      const earliest = logs.length > 0 ? logs[logs.length - 1].date : dateStr(new Date());
-      const start = new Date(earliest);
-      const today = new Date();
-      for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
-        allDates.push(dateStr(new Date(d)));
-      }
+      // Sort logs ascending by date to iterate chronologically
+      const sortedLogs = [...logs].sort((a, b) => a.date.localeCompare(b.date));
+      let currentRun = 0;
+      let prevDate: Date | null = null;
 
-      for (const ds of allDates) {
-        const val = logMap.get(ds) ?? 0;
-        if (isDayMet(val, dailyGoal, frequency)) {
-          streak++;
-          totalDaysGoalMet++;
-          if (streak > bestStreak) bestStreak = streak;
-        } else {
-          streak = 0;
+      for (const log of sortedLogs) {
+        if (!isDayMet(log.value, dailyGoal, frequency)) {
+          currentRun = 0;
+          prevDate = null;
+          continue;
         }
+        totalDaysGoalMet++;
+        const d = new Date(log.date + 'T00:00:00');
+        if (prevDate) {
+          const diffDays = Math.round((d.getTime() - prevDate.getTime()) / 86400000);
+          if (diffDays === 1) {
+            currentRun++;
+          } else {
+            currentRun = 1;
+          }
+        } else {
+          currentRun = 1;
+        }
+        if (currentRun > bestStreak) bestStreak = currentRun;
+        prevDate = d;
       }
 
       // Current streak: count backwards from today

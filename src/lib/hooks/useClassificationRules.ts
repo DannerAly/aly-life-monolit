@@ -46,12 +46,13 @@ export function useClassificationRules() {
         .single();
 
       if (error) throw error;
-      await fetchRules();
-      return created as ClassificationRule;
+      const newRule = created as ClassificationRule;
+      setRules(prev => [newRule, ...prev].sort((a, b) => b.priority - a.priority));
+      return newRule;
     } catch {
       return null;
     }
-  }, [fetchRules]);
+  }, []);
 
   const deleteRule = useCallback(async (id: string): Promise<boolean> => {
     try {
